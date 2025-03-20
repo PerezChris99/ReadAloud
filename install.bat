@@ -14,6 +14,14 @@ call env\Scripts\activate
 REM Install dependencies
 python -m pip install --upgrade pip
 echo Installing requirements...
+
+REM Uninstall any existing PyMuPDF installation to prevent conflicts
+python -m pip uninstall -y PyMuPDF fitz pymupdf
+
+REM Install PyMuPDF properly (using pymupdf package name)
+python -m pip install pymupdf==1.22.5
+
+REM Install the rest of the requirements
 python -m pip install -r requirements.txt
 
 REM Check if Tesseract OCR is installed

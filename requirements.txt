@@ -1,4 +1,4 @@
-PyQt5==5.15.9
+PyQt5>=5.15.0
 PyMuPDF==1.21.1
 python-docx==0.8.11
 pytesseract==0.3.10
