@@ -1,0 +1,8 @@
+PyQt5==5.15.6
+PyMuPDF==1.19.6
+python-docx==0.8.11
+pytesseract==0.3.10
+Pillow==9.5.0
+EbookLib==0.17.1
+pyttsx3==2.90
+beautifulsoup4==4.12.2
