@@ -3,8 +3,8 @@ import { unzipSync } from "fflate";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import mammoth from "mammoth";
 import {
-  getFormatFromName, makePagePreviews, normalizeText, splitIntoSentences,
-  validateDocumentMetadata, MAX_INDEXED_CHARACTERS, type BookRecord,
+  assertSafeZipArchive, getFormatFromName, makePagePreviews, normalizeText,
+  splitIntoSentences, validateDocumentMetadata, MAX_INDEXED_CHARACTERS, type BookRecord,
 } from "@readaloud/reader-core";
 import { extractWithService, type ApiSettings } from "./api";
 
@@ -30,10 +30,14 @@ function normaliseZipPath(path: string): string {
 }
 
 async function extractEpub(buffer: ArrayBuffer): Promise<{ text: string; pageCount: number }> {
-  const files = unzipSync(new Uint8Array(buffer));
+  const raw = new Uint8Array(buffer);
+  assertSafeZipArchive(raw);
+  const files = unzipSync(raw);
   const containerBytes = files["META-INF/container.xml"];
   if (!containerBytes) throw new Error("EPUB container metadata is missing.");
-  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", removeNSPrefix: true, parseAttributeValue: false });
+  const parser = new XMLParser({
+    ignoreAttributes: false, attributeNamePrefix: "@_", removeNSPrefix: true, parseAttributeValue: false,
+  });
   const container = parser.parse(bytesToText(containerBytes)) as { container?: { rootfiles?: { rootfile?: unknown } } };
   const roots = container.container?.rootfiles?.rootfile;
   const rootfile = (Array.isArray(roots) ? roots[0] : roots) as Record<string, string> | undefined;
@@ -60,7 +64,7 @@ async function extractEpub(buffer: ArrayBuffer): Promise<{ text: string; pageCou
       if (text) chunks.push(text);
     }
   }
-  return { text: normalizeText(chunks.join("\\n\\n")), pageCount: chunks.length };
+  return { text: normalizeText(chunks.join("\n\n")), pageCount: chunks.length };
 }
 
 export async function indexDocument(file: File, api: ApiSettings, progress: (value: number, label: string) => void): Promise<BookRecord> {
@@ -75,8 +79,13 @@ export async function indexDocument(file: File, api: ApiSettings, progress: (val
   let pageCount = 1;
 
   if (format === "pdf") {
+    let pdf: Awaited<ReturnType<typeof pdfjs.getDocument>["promise"]> | undefined;
     try {
-      const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer), useSystemFonts: true, isEvalSupported: false }).promise;
+      pdf = await pdfjs.getDocument({
+        data: new Uint8Array(buffer),
+        useSystemFonts: true,
+        isEvalSupported: false,
+      }).promise;
       if (pdf.numPages > 800) throw new Error("This PDF exceeds the 800-page limit.");
       const pages: string[] = [];
       for (let number = 1; number <= pdf.numPages; number += 1) {
@@ -86,17 +95,26 @@ export async function indexDocument(file: File, api: ApiSettings, progress: (val
         pages.push(line);
         progress(20 + Math.round((number / pdf.numPages) * 45), "Indexing PDF page " + number + " of " + pdf.numPages);
       }
-      text = pages.join("\\n\\n");
+      text = pages.join("\n\n");
       pageCount = pdf.numPages;
-      if (!normalizeText(text)) throw new Error("No selectable text was found in this PDF.");
     } catch (localError) {
+      if (localError instanceof Error && localError.message.includes("800-page limit")) throw localError;
       progress(30, "Trying configured PDF/OCR service");
       const remote = await extractWithService(file, api);
       text = remote.text;
       pageCount = remote.pageCount;
-      if (!normalizeText(text)) throw new Error("No readable text was found in this PDF.");
+    } finally {
+      if (pdf) await pdf.destroy().catch(() => undefined);
+    }
+    if (!normalizeText(text)) {
+      progress(30, "Trying configured PDF/OCR service");
+      const remote = await extractWithService(file, api);
+      text = remote.text;
+      pageCount = remote.pageCount;
     }
   } else if (format === "docx") {
+    const raw = new Uint8Array(buffer);
+    assertSafeZipArchive(raw);
     const result = await mammoth.extractRawText({ arrayBuffer: buffer });
     text = result.value;
     progress(65, "Extracted Word document text");
@@ -113,7 +131,9 @@ export async function indexDocument(file: File, api: ApiSettings, progress: (val
   } else {
     text = new TextDecoder("utf-8").decode(buffer);
     if (format === "html") text = stripMarkup(text);
-    if (format === "rtf") text = text.replace(/\\\\'[0-9a-fA-F]{2}/g, " ").replace(/\\\\[a-zA-Z]+-?\\d* ?|[{}]/g, " ");
+    if (format === "rtf") {
+      text = text.replace(/\\'[0-9a-fA-F]{2}/g, " ").replace(/\\[a-zA-Z]+-?\d* ?|[{}]/g, " ");
+    }
     progress(65, "Extracted document text");
   }
 
@@ -124,7 +144,7 @@ export async function indexDocument(file: File, api: ApiSettings, progress: (val
   const sentences = splitIntoSentences(text);
   const pagePreviews = makePagePreviews(text);
   progress(94, "Saving local reading index");
-  const rawTitle = file.name.replace(/\\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+  const rawTitle = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
   return {
     id: crypto.randomUUID(),
     title: rawTitle || "Untitled book",
