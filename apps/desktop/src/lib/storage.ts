@@ -42,7 +42,7 @@ function getDatabase(): Promise<IDBPDatabase<ReadAloudDB>> {
             const cursor = cursorRequest.result;
             if (!cursor) return;
             const record = cursor.value as unknown as BookRecord;
-            dataStore.put(record);
+            dataStore.put({ ...record, text: "" });
             cursor.update(toSummary(record));
             cursor.continue();
           };
