@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "ReadAloud",
+    "slug": "readaloud",
+    "version": "0.2.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "readaloud",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.readaloud.reader",
+      "deploymentTarget": "16.4"
+    },
+    "android": {
+      "package": "app.readaloud.reader",
+      "minSdkVersion": 26,
+      "adaptiveIcon": {
+        "backgroundColor": "#F4CF4F"
+      },
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "plugins": ["expo-document-picker", "expo-sqlite", "expo-secure-store", "expo-audio"],
+    "extra": {
+      "product": "ReadAloud",
+      "privacyFirst": true
+    }
+  }
+}
