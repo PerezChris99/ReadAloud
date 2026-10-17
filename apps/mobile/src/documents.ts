@@ -90,39 +90,81 @@ function extractEpub(bytes: Uint8Array): { text: string; pages: number } {
   return { text: normalizeText(chunks.join("\n\n")), pages: chunks.length };
 }
 
+function validateServiceUrl(value: string): string {
+  const base = value.trim().replace(/\/+$/, "");
+  if (!base) throw new Error("Configure the optional ReadAloud API URL in Settings.");
+  let parsed: URL;
+  try { parsed = new URL(base); } catch { throw new Error("Enter a valid ReadAloud API URL."); }
+  const host = parsed.hostname.toLowerCase();
+  const loopback = ["localhost", "127.0.0.1", "10.0.2.2", "[::1]"].includes(host) || host.endsWith(".localhost");
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error("The ReadAloud API URL must not contain credentials, a query, or a fragment.");
+  }
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback)) {
+    throw new Error("Use HTTPS for remote ReadAloud services. HTTP is allowed only for local development.");
+  }
+  return base;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number, timeoutMessage: string): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error(timeoutMessage);
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function requestNeuralSpeech(
+  text: string, voice: string, rate: number, volume: number, api: DocumentApiSettings,
+): Promise<Uint8Array> {
+  const base = validateServiceUrl(api.baseUrl);
+  const response = await fetchWithTimeout(base + "/v1/speech", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(api.token ? { "X-ReadAloud-Token": api.token } : {}) },
+    body: JSON.stringify({ text, voice, rate, volume }),
+  }, 35_000, "Neural speech timed out. Switch to a system voice or try again.");
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { detail?: string };
+    throw new Error(body.detail || "The neural voice service could not generate speech.");
+  }
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.startsWith("audio/")) throw new Error("The speech service returned an unexpected response.");
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > 8 * 1024 * 1024) {
+    throw new Error("The speech service returned oversized audio.");
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (!bytes.length || bytes.length > 8 * 1024 * 1024) throw new Error("The speech service returned empty or oversized audio.");
+  return bytes;
+}
+
 async function extractWithService(uri: string, name: string, size: number, api: DocumentApiSettings): Promise<{ text: string; pageCount: number }> {
   if (!api.baseUrl.trim()) throw new Error("PDF text extraction and image OCR need a configured ReadAloud service on mobile. Configure the service URL in Settings; files are not uploaded until you do.");
-  const base = api.baseUrl.trim().replace(/\/+$/, "");
-  const parsed = new URL(base);
-  if (parsed.protocol !== "https:" && !["localhost", "127.0.0.1", "10.0.2.2"].includes(parsed.hostname)) {
-    throw new Error("Use HTTPS for non-local ReadAloud services.");
-  }
+  const base = validateServiceUrl(api.baseUrl);
   const localFile = new File(uri);
   const form = new FormData();
   // Expo File implements Blob. Pass it directly so a 50 MiB upload does not
   // create an additional full-size Uint8Array and Blob in the JS heap.
   form.append("file", localFile, name);
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120_000);
-  try {
-    const response = await fetch(base + "/v1/documents/extract", {
-      method: "POST",
-      headers: api.token ? { "X-ReadAloud-Token": api.token } : {},
-      body: form,
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({})) as { detail?: string };
-      throw new Error(body.detail || "The configured document service could not process this file.");
-    }
-    const payload = await response.json() as { text: string; pageCount: number };
-    if (typeof payload.text !== "string" || payload.text.length > MAX_INDEXED_CHARACTERS) {
-      throw new Error("The document service returned invalid or oversized extracted text.");
-    }
-    return payload;
-  } finally {
-    clearTimeout(timeoutId);
+  const response = await fetchWithTimeout(base + "/v1/documents/extract", {
+    method: "POST",
+    headers: api.token ? { "X-ReadAloud-Token": api.token } : {},
+    body: form,
+  }, 120_000, "The document service timed out. Check the connection and try again.");
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { detail?: string };
+    throw new Error(body.detail || "The configured document service could not process this file.");
   }
+  const payload = await response.json() as { text: string; pageCount: number };
+  if (typeof payload.text !== "string" || payload.text.length > MAX_INDEXED_CHARACTERS) {
+    throw new Error("The document service returned invalid or oversized extracted text.");
+  }
+  return payload;
 }
 
 export async function indexMobileDocument(
