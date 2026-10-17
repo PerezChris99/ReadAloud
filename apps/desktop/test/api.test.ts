@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normaliseApiUrl, validateApiBaseUrl } from "./api";
+import { normaliseApiUrl, validateApiBaseUrl } from "../src/lib/api";
 
 test("normaliseApiUrl trims whitespace and trailing slashes", () => {
   assert.equal(normaliseApiUrl("  https://reader.example/api///  "), "https://reader.example/api");
