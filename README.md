@@ -12,6 +12,7 @@ ReadAloud is being built for people who would rather listen to a novel, textbook
 - **Local first:** extracted text and reading position stay on-device by default.
 - **Optional enhancement service:** self-hosted API for PDF/OCR extraction and neural speech; provider keys never belong in client bundles.
 - **Voice fallback:** installed device voices remain available without a service. Voice quality varies by OS and installed voice; natural neural voices require configured service credentials.
+- **Mobile listening:** background audio and lock-screen metadata are enabled for neural playback; sustained background behavior and interruptions still need real-device acceptance tests.
 
 ## System flow
 

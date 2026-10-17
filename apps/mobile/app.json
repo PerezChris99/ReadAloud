@@ -20,7 +20,20 @@
       },
       "softwareKeyboardLayoutMode": "pan"
     },
-    "plugins": ["expo-document-picker", "expo-sqlite", "expo-secure-store", "expo-audio"],
+    "plugins": [
+      "expo-document-picker",
+      "expo-sqlite",
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": true,
+          "enableBackgroundRecording": false,
+          "recordAudioAndroid": false,
+          "microphonePermission": false
+        }
+      ]
+    ],
     "extra": {
       "product": "ReadAloud",
       "privacyFirst": true

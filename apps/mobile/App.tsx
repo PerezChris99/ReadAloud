@@ -6,7 +6,7 @@ import {
 import * as DocumentPicker from "expo-document-picker";
 import * as Speech from "expo-speech";
 import * as Haptics from "expo-haptics";
-import { createAudioPlayer, type AudioPlayer } from "expo-audio";
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
 import { File, Paths } from "expo-file-system";
 import * as SecureStore from "expo-secure-store";
 import {
@@ -111,6 +111,13 @@ export default function App() {
   const api: DocumentApiSettings = useMemo(() => ({ baseUrl: apiBaseUrl.trim(), token: apiToken }), [apiBaseUrl, apiToken]);
 
   useEffect(() => {
+    void setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: true,
+      interruptionMode: "doNotMix",
+    }).catch(() => {
+      // If the platform rejects the audio session, foreground playback remains available.
+    });
     let cancelled = false;
     (async () => {
       try {
@@ -161,7 +168,11 @@ export default function App() {
     runId.current += 1;
     shouldContinue.current = false;
     await Speech.stop().catch(() => undefined);
-    try { playerRef.current?.pause(); playerRef.current?.remove(); } catch { /* ignore already released player */ }
+    try {
+      playerRef.current?.setActiveForLockScreen(false);
+      playerRef.current?.pause();
+      playerRef.current?.remove();
+    } catch { /* ignore already released player */ }
     playerRef.current = null;
     const oldFile = cachedAudioRef.current;
     cachedAudioRef.current = null;
@@ -201,10 +212,18 @@ export default function App() {
       cachedAudioRef.current = file;
       const audioPlayer = createAudioPlayer(file.uri);
       playerRef.current = audioPlayer;
+      audioPlayer.setActiveForLockScreen(true, {
+        title: book.title,
+        artist: "ReadAloud",
+        albumTitle: "Your listening library",
+      });
       const subscription = audioPlayer.addListener("playbackStatusUpdate", (status) => {
         if (!status.didJustFinish) return;
         subscription.remove();
-        try { audioPlayer.remove(); } catch { /* already released */ }
+        try {
+          audioPlayer.setActiveForLockScreen(false);
+          audioPlayer.remove();
+        } catch { /* already released */ }
         if (playerRef.current === audioPlayer) playerRef.current = null;
         const cached = cachedAudioRef.current;
         cachedAudioRef.current = null;
