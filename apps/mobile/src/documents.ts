@@ -98,9 +98,10 @@ async function extractWithService(uri: string, name: string, size: number, api: 
     throw new Error("Use HTTPS for non-local ReadAloud services.");
   }
   const localFile = new File(uri);
-  const bytes = await localFile.bytes();
   const form = new FormData();
-  form.append("file", new Blob([bytes], { type: "application/octet-stream" }), name);
+  // Expo File implements Blob. Pass it directly so a 50 MiB upload does not
+  // create an additional full-size Uint8Array and Blob in the JS heap.
+  form.append("file", localFile, name);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120_000);
   try {
