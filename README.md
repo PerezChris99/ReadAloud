@@ -123,6 +123,8 @@ Format support varies by platform and extraction path. Current code includes TXT
 - The mobile 25 MB install-size target must be measured on the final signed artifacts for each platform. If it is exceeded, inspect bundle contents and native dependencies before release; do not claim compliance based on JavaScript source size.
 - Read the release checklist. Any unchecked build, device, security, size, legal, signing or store item blocks a production launch.
 
-## License and third-party notices
+## Proprietary license and third-party notices
 
-No repository license has been selected or published yet. Until the owner publishes an explicit license and required third-party notices, do not assume that this repository is open source or that redistribution is permitted. Review dependency licenses and add the owner's approved license before public distribution.
+ReadAloud is **proprietary software**. Copyright in original project materials is claimed by **PerezChris99**, subject to third-party rights and any signed legal assignment. All rights are reserved. Prior explicit written permission is required to use, modify, redistribute, commercially exploit, or contribute to the project. Public visibility is not a license. See [`LICENSE`](LICENSE), [`CONTRIBUTING.md`](CONTRIBUTING.md), and [`docs/PROPRIETARY_RIGHTS.md`](docs/PROPRIETARY_RIGHTS.md). Third-party components remain under their own licenses.
+
+The registered legal name and jurisdiction of the owner's company have not been provided in this repository. The owner must record the exact company identity from its legal documents before making a company-specific copyright/assignment claim. For written license or contribution requests, contact `kweeziperez712@gmail.com`.
