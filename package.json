@@ -1,0 +1,21 @@
+{
+  "name": "readaloud",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Local-first cross-platform document reader and listening companion",
+  "workspaces": ["apps/desktop", "apps/mobile", "packages/reader-core"],
+  "engines": { "node": ">=22.13.0", "npm": ">=10.9.0" },
+  "scripts": {
+    "test:core": "tsx --test packages/reader-core/test/*.test.ts",
+    "typecheck:core": "tsc --noEmit -p packages/reader-core/tsconfig.json",
+    "typecheck:desktop": "npm --workspace @readaloud/desktop run typecheck",
+    "typecheck:mobile": "npm --workspace @readaloud/mobile run typecheck",
+    "typecheck": "npm run typecheck:core && npm run typecheck:desktop && npm run typecheck:mobile",
+    "dev:desktop": "npm --workspace @readaloud/desktop run tauri:dev",
+    "build:desktop": "npm --workspace @readaloud/desktop run tauri:build",
+    "dev:mobile": "npm --workspace @readaloud/mobile run start",
+    "build:android": "npm --workspace @readaloud/mobile run build:android",
+    "build:ios": "npm --workspace @readaloud/mobile run build:ios"
+  },
+  "devDependencies": { "tsx": "4.20.6", "typescript": "5.9.3" }
+}

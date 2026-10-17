@@ -1,65 +1,71 @@
-# ReadAloud Application
+# ReadAloud
 
-ReadAloud is a document reader application that converts text from various document formats to speech.
+**A calm, local-first reading companion for books, documents and long-form reading.**
 
-## Supported Formats
+ReadAloud is being built for people who would rather listen to a novel, textbook, report or PDF than stare at a screen. The experience combines a personal library, document indexing, a page-style preview, sentence-synchronised captions, accessible playback controls and natural neural voices when a speech provider is configured.
 
-- PDF files (.pdf)
-- Microsoft Word documents (.docx)
-- Text files (.txt)
-- EPUB books (.epub)
-- Images (.jpg, .png) with text recognition
+## Product goals
 
-## Installation
+- **Mobile:** React Native and Expo for Android 8.0 (API 26) and later, plus iOS.
+- **Desktop:** a lightweight Tauri 2 application for Windows, with React and TypeScript.
+- **Shared reader core:** type/size validation, text normalisation, sentence segmentation, page previews and explicit playback-state transitions.
+- **Local first:** extracted text and reading position stay on-device by default.
+- **Optional enhancement service:** self-hosted API for PDF/OCR extraction and neural speech; provider keys never belong in client bundles.
+- **Voice fallback:** installed device voices remain available without a service. Voice quality varies by OS and installed voice; natural neural voices require configured service credentials.
 
-### Prerequisites
-- Python 3.8 or newer
-- Tesseract OCR (for image text recognition)
+## System flow
 
-### Automatic Installation
-1. Run the `install.bat` script to:
-   - Create a virtual environment (if not already created)
-   - Install all required dependencies
-   - Check for Tesseract OCR installation
+~~~mermaid
+flowchart TD
+  A[Import a book or document] --> B[Validate format and size]
+  B --> C[Index and extract text]
+  C --> D[Split into sentences and preview pages]
+  D --> E[Save local library and reading position]
+  E --> F[Reader player]
+  F --> G[Current-page preview]
+  F --> H[Sentence-synchronised caption]
+  F --> I[System voice]
+  F -. optional .-> J[Neural speech service]
+~~~
 
-### Manual Installation (if automatic installation fails)
-1. Create a virtual environment:
-   ```
-   python -m venv env
-   ```
-2. Activate the virtual environment:
-   ```
-   env\Scripts\activate
-   ```
-3. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-   If that fails, try:
-   ```
-   pip install -r alternate_requirements.txt
-   ```
-   
-### Tesseract OCR Installation
-For image text recognition (OCR) to work:
-1. Download from: https://github.com/UB-Mannheim/tesseract/wiki
-2. During installation, check "Add to PATH" option
-3. Default installation path is typically: `C:\Program Files\Tesseract-OCR`
+~~~mermaid
+flowchart LR
+  M[React Native / Expo] --> C[Shared reader core]
+  D[Tauri desktop / React] --> C
+  M --> S[(Local SQLite)]
+  D --> L[(Local IndexedDB)]
+  M -. PDF / OCR / neural speech .-> A[Optional FastAPI]
+  D -. PDF / OCR / neural speech .-> A
+  A --> P[Document parsers and OCR]
+  A --> T[Neural speech provider]
+~~~
 
-## Usage
+## Repository layout
 
-1. Run the application using `run.bat`
-2. Click "Browse..." to select a document
-3. The text content will be displayed in the application window
-4. Adjust voice and rate settings as desired
-5. Click "Play" to start reading the document aloud
-6. Use "Pause" and "Stop" buttons to control playback
+- apps/mobile — React Native (Expo) app.
+- apps/desktop — Tauri desktop app.
+- apps/api — optional extraction and neural speech API.
+- packages/reader-core — cross-platform domain logic.
+- docs — architecture, security, legal and release notes.
 
-## Troubleshooting
+## Development prerequisites
 
-If you encounter installation issues:
-1. Run `troubleshoot.bat` to diagnose common problems
-2. Try installing an older version of PyMuPDF: `pip install PyMuPDF==1.19.6`
-3. Make sure your Python version is compatible with the libraries
+- Node.js 22.13+ and npm.
+- Rust toolchain and platform build prerequisites for Tauri desktop.
+- Android Studio/SDK for Android; Xcode on macOS for iOS builds.
+- Python 3.11+ and Tesseract OCR only when running the optional API.
+- Azure Speech resource credentials only for neural voice mode.
 
-For image recognition issues, ensure Tesseract OCR is properly installed and available in your system PATH.
+## Common commands
+
+From the repository root:
+
+    npm install
+    npm run test:core
+    npm run typecheck
+    npm run dev:desktop
+    npm run dev:mobile
+
+The optional API has its own requirements and environment configuration; see apps/api/.env.example when that service is added.
+
+**Release status:** this codebase is in active build-out, not a released or independently verified app. Real-device installation, mobile-store signing, neural voice credentials, deployment configuration and final legal review are release gates. Do not expose a speech service publicly without authentication, rate limiting and controlled provider spend.
