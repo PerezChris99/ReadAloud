@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
 
@@ -22,6 +23,8 @@ APP_VERSION = "0.2.0"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)))
 MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "800"))
 MAX_OCR_PAGES = int(os.getenv("MAX_OCR_PAGES", "100"))
+MAX_CONCURRENT_EXTRACTIONS = max(1, int(os.getenv("MAX_CONCURRENT_EXTRACTIONS", "2")))
+EXTRACTION_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTIONS)
 
 limiter = Limiter(
     key_func=get_remote_address,
@@ -116,21 +119,34 @@ async def extract(request: Request, file: UploadFile = File(...)):
                 raise HTTPException(status_code=413, detail="Document exceeds the upload limit.")
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="Invalid Content-Length.") from exc
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
-    await file.close()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Document exceeds the 50 MB processing limit.")
-    if not data:
-        raise HTTPException(status_code=422, detail="The selected document is empty.")
+    acquired = False
     try:
-        result = await run_in_threadpool(extract_document, data, filename, MAX_PDF_PAGES, MAX_OCR_PAGES)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="Document indexing failed. Try a different file.") from exc
-    if not result.text:
-        raise HTTPException(status_code=422, detail="No readable text was found. Try a clearer scan or a text-based document.")
-    return {"text": result.text, "pageCount": result.page_count, "format": result.format, "characterCount": len(result.text), "retained": False}
+        # OCR/PDF parsing can consume substantial CPU and memory. Fail fast under
+        # saturation rather than allowing uploads to accumulate in worker memory.
+        try:
+            await asyncio.wait_for(EXTRACTION_SEMAPHORE.acquire(), timeout=0.5)
+            acquired = True
+        except TimeoutError as exc:
+            raise HTTPException(status_code=503, detail="Document processing is busy. Try again shortly.", headers={"Retry-After": "2"}) from exc
+
+        data = await file.read(MAX_UPLOAD_BYTES + 1)
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Document exceeds the configured upload limit.")
+        if not data:
+            raise HTTPException(status_code=422, detail="The selected document is empty.")
+        try:
+            result = await run_in_threadpool(extract_document, data, filename, MAX_PDF_PAGES, MAX_OCR_PAGES)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail="Document indexing failed. Try a different file.") from exc
+        if not result.text:
+            raise HTTPException(status_code=422, detail="No readable text was found. Try a clearer scan or a text-based document.")
+        return {"text": result.text, "pageCount": result.page_count, "format": result.format, "characterCount": len(result.text), "retained": False}
+    finally:
+        await file.close()
+        if acquired:
+            EXTRACTION_SEMAPHORE.release()
 
 @app.post("/v1/speech", dependencies=[Depends(verify_client)])
 @limiter.limit("30/minute")
