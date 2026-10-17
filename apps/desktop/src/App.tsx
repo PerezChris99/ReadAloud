@@ -3,7 +3,7 @@ import type { BookRecord, BookSummary, ReadingPreferences } from "@readaloud/rea
 import { DEFAULT_PREFERENCES, sentenceToPageIndex } from "@readaloud/reader-core";
 import { indexDocument } from "./lib/documents";
 import { listBooks, getBook, removeBook, saveBook, updateReadingPosition } from "./lib/storage";
-import { normaliseApiUrl, type ApiSettings } from "./lib/api";
+import { neuralSpeechUrl, normaliseApiUrl, type ApiSettings } from "./lib/api";
 
 type Notice = { tone: "good" | "warn" | "error"; message: string } | null;
 
@@ -116,16 +116,7 @@ export default function App() {
     if (!sentence) return;
     try {
       if (provider === "neural") {
-        const response = await fetch(api.baseUrl + "/v1/speech", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...(api.token ? { "X-ReadAloud-Token": api.token } : {}) },
-          body: JSON.stringify({ text: sentence, voice, rate, volume }),
-        });
-        if (!response.ok) {
-          const payload = await response.json().catch(() => ({})) as { detail?: string };
-          throw new Error(payload.detail || "Neural speech is unavailable.");
-        }
-        const objectUrl = URL.createObjectURL(await response.blob());
+        const objectUrl = await neuralSpeechUrl(sentence, voice, rate, volume, api);
         audioUrlRef.current = objectUrl;
         const audio = new Audio(objectUrl);
         audio.volume = volume;
