@@ -1,0 +1,12 @@
+[package]
+name = "readaloud-desktop"
+version = "0.2.0"
+description = "ReadAloud desktop listening companion"
+authors = ["ReadAloud"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
