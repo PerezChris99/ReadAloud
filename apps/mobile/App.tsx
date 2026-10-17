@@ -12,7 +12,7 @@ import * as SecureStore from "expo-secure-store";
 import {
   DEFAULT_PREFERENCES, sentenceToPageIndex, type BookRecord, type BookSummary, type ReadingPreferences,
 } from "@readaloud/reader-core";
-import { indexMobileDocument } from "./src/documents";
+import { indexMobileDocument, requestNeuralSpeech } from "./src/documents";
 import type { DocumentApiSettings } from "./src/documents";
 import { listBooks, getBook, saveBook, deleteBook, updateReadingPosition } from "./src/storage";
 import { colors } from "./src/theme";
@@ -227,17 +227,7 @@ export default function App() {
     if (token !== runId.current || !shouldContinue.current) return;
 
     if (provider === "neural") {
-      if (!api.baseUrl) throw new Error("Natural neural voices need a configured ReadAloud service. Add the service URL in Settings.");
-      const response = await fetch(api.baseUrl.replace(/\/+$/, "") + "/v1/speech", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(api.token ? { "X-ReadAloud-Token": api.token } : {}) },
-        body: JSON.stringify({ text: sentence, voice: voice || "en-US-JennyNeural", rate, volume }),
-      });
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({})) as { detail?: string };
-        throw new Error(body.detail || "The neural voice service could not generate speech.");
-      }
-      const audioBytes = new Uint8Array(await response.arrayBuffer());
+      const audioBytes = await requestNeuralSpeech(sentence, voice || "en-US-JennyNeural", rate, volume, api);
       if (token !== runId.current || !shouldContinue.current) return;
       const file = new File(Paths.cache, "readaloud-" + token + "-" + index + ".mp3");
       file.create({ overwrite: true });
