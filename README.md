@@ -1,72 +1,127 @@
 # ReadAloud
 
-**A calm, local-first reading companion for books, documents and long-form reading.**
+**A local-first reading and listening companion for long-form documents.**
 
-ReadAloud is being built for people who would rather listen to a novel, textbook, report or PDF than stare at a screen. The experience combines a personal library, document indexing, a page-style preview, sentence-synchronised captions, accessible playback controls and natural neural voices when a speech provider is configured.
+ReadAloud combines a personal library, document indexing, page-style previews, sentence-synchronised captions and playback controls. It is designed for readers who want to listen to books, reports and documents while keeping their library on their own device by default.
 
-## Product goals
+> **Release status: pre-release.** The source is under active development. No desktop installer, Android package or iOS build has been certified by this repository as a production release. Build, signing, real-device, store-policy and legal checks in [the release checklist](docs/RELEASE_CHECKLIST.md) are release gates—not claims that those checks have passed.
 
-- **Mobile:** React Native and Expo for Android 8.0 (API 26) and later, plus iOS.
-- **Desktop:** a lightweight Tauri 2 application for Windows, with React and TypeScript.
-- **Shared reader core:** type/size validation, text normalisation, sentence segmentation, page previews and explicit playback-state transitions.
-- **Local first:** extracted text and reading position stay on-device by default.
-- **Optional enhancement service:** self-hosted API for PDF/OCR extraction and neural speech; provider keys never belong in client bundles.
-- **Voice fallback:** installed device voices remain available without a service. Voice quality varies by OS and installed voice; natural neural voices require configured service credentials.
-- **Mobile listening:** background audio and lock-screen metadata are enabled for neural playback; sustained background behavior and interruptions still need real-device acceptance tests.
+## Product targets and current boundaries
 
-## System flow
+| Target | Implementation | Important boundary |
+| --- | --- | --- |
+| Windows desktop | React + TypeScript, Vite and Tauri 2 | Windows NSIS installer is configured; clean-machine installation, signing, upgrade and uninstall still require verification. |
+| Android | React Native + Expo | Minimum Android API 26 (Android 8.0). An install-size budget of 25 MB is a target to measure on a signed release artifact, not a verified result. |
+| iOS | React Native + Expo | Configured deployment target iOS 16.4; build and submission require macOS/Xcode and Apple signing credentials. |
+| Optional processing API | Python 3.11+ / FastAPI | Provides document extraction/OCR and Azure neural speech. It is optional and must be deployed with TLS, a strong token, trusted-host/CORS configuration, shared rate-limit storage and provider spend controls. |
 
-~~~mermaid
+The app does not currently implement user accounts, cross-device sync, cloud library backup, or advertising analytics. Device-installed system voices can work without the API. Neural voices require a configured API and Azure Speech credentials on the server. Voice availability and pronunciation vary by platform and provider.
+
+## How it works
+
+```mermaid
 flowchart TD
-  A[Import a book or document] --> B[Validate format and size]
-  B --> C[Index and extract text]
-  C --> D[Split into sentences and preview pages]
-  D --> E[Save local library and reading position]
-  E --> F[Reader player]
-  F --> G[Current-page preview]
-  F --> H[Sentence-synchronised caption]
-  F --> I[System voice]
-  F -. optional .-> J[Neural speech service]
-~~~
+    A[Choose a document] --> B[Validate type and size]
+    B --> C{Processing path}
+    C -->|TXT, DOCX, EPUB, HTML and supported text formats| D[Local extraction]
+    C -->|Mobile PDF / image OCR| E[Explicitly configured API]
+    C -->|Desktop PDF local fallback| E
+    D --> F[Normalize and segment text]
+    E --> F
+    F --> G[Create sentence index and page previews]
+    G --> H[Save local library and reading position]
+    H --> I[Reader and playback controls]
+    I --> J[Sentence caption and page preview]
+    I --> K[Installed system voice]
+    I -. optional .-> L[Neural speech API]
+    L --> M[Configured speech provider]
+```
 
-~~~mermaid
+```mermaid
 flowchart LR
-  M[React Native / Expo] --> C[Shared reader core]
-  D[Tauri desktop / React] --> C
-  M --> S[(Local SQLite)]
-  D --> L[(Local IndexedDB)]
-  M -. PDF / OCR / neural speech .-> A[Optional FastAPI]
-  D -. PDF / OCR / neural speech .-> A
-  A --> P[Document parsers and OCR]
-  A --> T[Neural speech provider]
-~~~
+    subgraph Clients
+      A[React Native / Expo]
+      B[Tauri / React]
+    end
+    C[Shared TypeScript reader core]
+    D[(SQLite on mobile)]
+    E[(IndexedDB on desktop)]
+    F[Optional Python FastAPI]
+    G[Document parsers / OCR]
+    H[Azure neural speech]
+    A --> C
+    B --> C
+    A --> D
+    B --> E
+    A -. configured requests .-> F
+    B -. configured requests .-> F
+    F --> G
+    F --> H
+```
 
-## Repository layout
+**Privacy boundary:** imported text and reading position are stored locally by default. The mobile app sends PDF/image files to the configured service when those formats need server extraction; neural voice sends the current sentence to the configured service. Only configure a service you trust. See [Security and privacy](docs/SECURITY.md).
 
-- apps/mobile — React Native (Expo) app.
-- apps/desktop — Tauri desktop app.
-- apps/api — optional extraction and neural speech API.
-- packages/reader-core — cross-platform domain logic.
-- docs — architecture, security, legal and release notes.
+## Repository map
+
+- `apps/mobile` — Expo mobile client, SQLite library, document import and playback.
+- `apps/desktop` — Tauri desktop client, IndexedDB library and local document processing.
+- `apps/api` — optional FastAPI extraction/OCR and neural-speech service.
+- `packages/reader-core` — shared types, format validation, text normalization, sentence segmentation, previews and playback-domain logic.
+- `docs/ARCHITECTURE.md` — component boundaries and data flow.
+- `docs/SECURITY.md` — trust boundaries and deployment security baseline.
+- `docs/RELEASE_CHECKLIST.md` — measurable release gates for desktop, Android, iOS, API and stores.
 
 ## Development prerequisites
 
-- Node.js 22.13+ and npm.
-- Rust toolchain and platform build prerequisites for Tauri desktop.
-- Android Studio/SDK for Android; Xcode on macOS for iOS builds.
-- Python 3.11+ and Tesseract OCR only when running the optional API.
-- Azure Speech resource credentials only for neural voice mode.
+- Node.js 22.13+ and npm 10.9+.
+- Rust and Tauri's Windows build prerequisites for the desktop installer.
+- Android Studio/SDK for Android builds.
+- macOS, Xcode and Apple signing credentials for iOS release builds.
+- Python 3.11+ and Tesseract OCR for the optional API.
+- Azure Speech resource credentials only if enabling neural speech.
 
 ## Common commands
 
-From the repository root:
+Run from the repository root:
 
-    npm install
-    npm run test:core
-    npm run typecheck
-    npm run dev:desktop
-    npm run dev:mobile
+```sh
+npm install
+npm run test:core
+npm run typecheck
+npm run dev:desktop
+npm run dev:mobile
+npm run build:desktop
+npm run build:android
+npm run build:ios
+```
 
-The Python API is in `apps/api`. To run it locally, create a Python 3.12 virtual environment, install `apps/api/requirements.txt`, install Tesseract OCR, copy `apps/api/.env.example` to `apps/api/.env`, and run `uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 8787`. See [apps/api/README.md](apps/api/README.md). Set the neural speech provider key only on the server. Public production still requires HTTPS, a unique high-entropy service token, Redis rate-limit storage and deployment-specific host/origin configuration.
+The API's tests use pytest. From the repository root, create a Python virtual environment, install `apps/api/requirements.txt` and `apps/api/requirements-dev.txt`, then run:
 
-**Release status:** this codebase is in active build-out, not a released or independently verified app. Real-device installation, mobile-store signing, neural voice credentials, deployment configuration and final legal review are release gates. Do not expose a speech service publicly without authentication, rate limiting and controlled provider spend.
+```sh
+python -m pytest apps/api/test
+```
+
+For a local API, copy `apps/api/.env.example` to `apps/api/.env`, configure local-only values, install Tesseract, then run:
+
+```sh
+uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 8787
+```
+
+Do not expose that development command to the public internet. Production requires HTTPS, a high-entropy `READALOUD_API_TOKEN`, exact `READALOUD_ALLOWED_HOSTS` and `READALOUD_CORS_ORIGINS`, protected shared Redis rate-limit storage, secret-manager-backed Azure credentials, ingress/request timeouts, monitoring and provider spend limits. A single shared bearer token is not a multi-user identity or account system.
+
+## Supported import formats
+
+Format support varies by platform and extraction path. Current code includes TXT, DOCX, EPUB, HTML/Markdown/RTF-style text and PDF/image extraction paths. Mobile PDF and image OCR require the optional API; desktop PDF attempts local extraction and can use the API fallback. Validate the actual sample corpus and error states per platform before advertising support in a store listing.
+
+## Security, performance and release discipline
+
+- Imported files are untrusted input. The shared core and API enforce file/format/archive/text limits; API document extraction is run outside the event loop, and neural audio is capped while streamed from the provider.
+- The library list uses summary records and loads the selected book's full index on demand.
+- Keep provider secrets on the server or in platform secure storage; never bake production service credentials into public client bundles.
+- No CI workflows are included by project policy. Run the documented checks manually in a clean, supported environment and preserve the logs.
+- The mobile 25 MB install-size target must be measured on the final signed artifacts for each platform. If it is exceeded, inspect bundle contents and native dependencies before release; do not claim compliance based on JavaScript source size.
+- Read the release checklist. Any unchecked build, device, security, size, legal, signing or store item blocks a production launch.
+
+## License and third-party notices
+
+No repository license has been selected or published yet. Until the owner publishes an explicit license and required third-party notices, do not assume that this repository is open source or that redistribution is permitted. Review dependency licenses and add the owner's approved license before public distribution.
