@@ -70,6 +70,8 @@ flowchart LR
 - `docs/ARCHITECTURE.md` — component boundaries and data flow.
 - `docs/SECURITY.md` — trust boundaries and deployment security baseline.
 - `docs/RELEASE_CHECKLIST.md` — measurable release gates for desktop, Android, iOS, API and stores.
+- `docs/GIT_WORKFLOW.md` — required `perez` → PR → `main` branch discipline and manual validation rules.
+- `docs/releases/0.2.0-prerelease.md` — factual pre-release notes and promotion gates; not a claim of published binaries.
 - `docs/STORE_LISTING.md` — conservative store-listing draft and data-disclosure preparation.
 
 ## Development prerequisites
@@ -119,7 +121,9 @@ Format support varies by platform and extraction path. Current code includes TXT
 - Imported files are untrusted input. The shared core and API enforce file/format/archive/text limits; API document extraction is run outside the event loop, and neural audio is capped while streamed from the provider.
 - The library list uses summary records and loads the selected book's full index on demand.
 - Keep provider secrets on the server or in platform secure storage; never bake production service credentials into public client bundles.
-- No CI workflows are included by project policy. Run the documented checks manually in a clean, supported environment and preserve the logs.
+- No CI workflows are included by project policy while workflow quota is exhausted. Run documented checks manually in a clean, supported environment and preserve the logs.
+- Follow [`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md): implement on `perez`, open a PR to `main`, merge after review/evidence, then fast-forward `perez` to the merged `main` SHA. Do not push directly to `main`.
+- Workspace manifests currently need a committed npm lockfile before `npm ci` can provide reproducible installs; do not treat `npm install` success on one machine as reproducibility evidence.
 - The mobile 25 MB install-size target must be measured on the final signed artifacts for each platform. If it is exceeded, inspect bundle contents and native dependencies before release; do not claim compliance based on JavaScript source size.
 - Read the release checklist. Any unchecked build, device, security, size, legal, signing or store item blocks a production launch.
 
