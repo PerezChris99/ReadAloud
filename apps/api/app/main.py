@@ -41,7 +41,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-allowed_hosts = [value.strip() for value in os.getenv("READALOUD_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if value.strip()]
+allowed_hosts = [value.strip() for value in os.getenv("READALOUD_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver").split(",") if value.strip()]
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
 allowed_origins = [value.strip() for value in os.getenv(
@@ -138,5 +138,14 @@ async def speech(request: Request, payload: SpeechRequest):
 
 @app.on_event("startup")
 async def enforce_production_configuration():
-    if api_environment() == "production" and not os.getenv("READALOUD_API_TOKEN", "").strip():
-        raise RuntimeError("READALOUD_API_TOKEN must be configured before production startup.")
+    if api_environment() != "production":
+        return
+    token = os.getenv("READALOUD_API_TOKEN", "").strip()
+    if len(token) < 32:
+        raise RuntimeError("Production READALOUD_API_TOKEN must contain at least 32 characters.")
+    if not os.getenv("REDIS_URL", "").strip():
+        raise RuntimeError("REDIS_URL must be configured for shared production rate limits.")
+    if not allowed_hosts or "*" in allowed_hosts or "testserver" in allowed_hosts:
+        raise RuntimeError("Configure explicit production READALOUD_ALLOWED_HOSTS.")
+    if not allowed_origins or "*" in allowed_origins:
+        raise RuntimeError("Configure explicit production READALOUD_CORS_ORIGINS.")

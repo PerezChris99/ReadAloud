@@ -52,6 +52,7 @@ export default function App() {
   const inputRef = useRef<HTMLInputElement>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
   const shouldContinue = useRef(false);
   const selected = books.find((book) => book.id === selectedId) ?? books[0] ?? null;
   const api: ApiSettings = useMemo(() => ({ baseUrl: normaliseApiUrl(apiBase), token: apiToken }), [apiBase, apiToken]);
@@ -85,6 +86,8 @@ export default function App() {
     window.speechSynthesis.cancel();
     audioRef.current?.pause();
     audioRef.current = null;
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = null;
     setPlaying(false);
     if (reset) setSentenceIndex(0);
     chime(effects, "stop");
@@ -112,16 +115,21 @@ export default function App() {
           throw new Error(payload.detail || "Neural speech is unavailable.");
         }
         const objectUrl = URL.createObjectURL(await response.blob());
+        audioUrlRef.current = objectUrl;
         const audio = new Audio(objectUrl);
         audio.volume = volume;
         audioRef.current = audio;
         audio.onended = () => {
           URL.revokeObjectURL(objectUrl);
+          if (audioUrlRef.current === objectUrl) audioUrlRef.current = null;
+          if (audioRef.current === audio) audioRef.current = null;
           if (shouldContinue.current) void speakIndex(book, index + 1);
           else setPlaying(false);
         };
         audio.onerror = () => {
           URL.revokeObjectURL(objectUrl);
+          if (audioUrlRef.current === objectUrl) audioUrlRef.current = null;
+          if (audioRef.current === audio) audioRef.current = null;
           setPlaying(false);
           shouldContinue.current = false;
           setNotice({ tone: "error", message: "The generated audio could not be played. Switch to a system voice or retry." });
@@ -167,6 +175,14 @@ export default function App() {
       shouldContinue.current = true;
       window.speechSynthesis.resume();
       setPlaying(true);
+      return;
+    }
+    if (provider === "neural" && audioRef.current) {
+      shouldContinue.current = true;
+      void audioRef.current.play().then(() => setPlaying(true)).catch((error: unknown) => {
+        setPlaying(false);
+        setNotice({ tone: "error", message: error instanceof Error ? error.message : "Audio could not resume." });
+      });
       return;
     }
     shouldContinue.current = true;
