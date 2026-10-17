@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  assertSafeZipArchive,
   makePagePreviews, normalizeText, splitIntoSentences, sentenceToPageIndex,
   createInitialReaderState, readerReducer, getFormatFromName, validateDocumentMetadata,
 } from "../src/index.js";
@@ -12,7 +13,7 @@ test("splits sentences and rejects empty caption lists", () => {
   assert.deepEqual(splitIntoSentences("First sentence. Second sentence! Last one?"), ["First sentence.", "Second sentence!", "Last one?"]);
   assert.deepEqual(splitIntoSentences("  "), []);
 });
-test("page previews are bounded and preserve the trailing text", () => {
+test("page previews are bounded and preserve trailing text", () => {
   const input = Array.from({ length: 18 }, (_, i) => "Paragraph " + (i + 1) + ": " + "book content ".repeat(35)).join("\n\n");
   const pages = makePagePreviews(input, 600);
   assert.ok(pages.length > 1);
@@ -42,4 +43,7 @@ test("validates known formats, unsupported extensions, unsafe names and oversize
   assert.ok(validateDocumentMetadata("payload.exe", 100));
   assert.ok(validateDocumentMetadata("report.pdf", 60 * 1024 * 1024));
   assert.ok(validateDocumentMetadata("bad\nname.pdf", 100));
+});
+test("rejects truncated archives before decompressing", () => {
+  assert.throws(() => assertSafeZipArchive(new Uint8Array([0x50, 0x4b, 0x03, 0x04])), /archive/i);
 });
