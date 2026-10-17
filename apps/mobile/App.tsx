@@ -104,6 +104,8 @@ export default function App() {
   const runId = useRef(0);
   const shouldContinue = useRef(false);
   const playerRef = useRef<AudioPlayer | null>(null);
+  const playerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
+  const activeNeuralSegmentRef = useRef<{ book: BookRecord; index: number; token: number } | null>(null);
   const cachedAudioRef = useRef<File | null>(null);
   const selected = selectedBook;
   const activeSentence = selected?.sentences[currentSentence] ?? "";
@@ -162,17 +164,31 @@ export default function App() {
       cancelled = true;
       runId.current += 1;
       shouldContinue.current = false;
+      activeNeuralSegmentRef.current = null;
       void Speech.stop();
-      try { playerRef.current?.pause(); playerRef.current?.remove(); } catch { /* native player may already be released */ }
+      try {
+        playerRef.current?.setActiveForLockScreen(false);
+        playerSubscriptionRef.current?.remove();
+        playerSubscriptionRef.current = null;
+        playerRef.current?.pause();
+        playerRef.current?.remove();
+      } catch { /* native player may already be released */ }
+      playerRef.current = null;
+      const cached = cachedAudioRef.current;
+      cachedAudioRef.current = null;
+      if (cached) { try { cached.delete(); } catch { /* cleanup only */ } }
     };
   }, []);
 
   const stop = useCallback(async (reset = false) => {
     runId.current += 1;
     shouldContinue.current = false;
+    activeNeuralSegmentRef.current = null;
     await Speech.stop().catch(() => undefined);
     try {
       playerRef.current?.setActiveForLockScreen(false);
+      playerSubscriptionRef.current?.remove();
+      playerSubscriptionRef.current = null;
       playerRef.current?.pause();
       playerRef.current?.remove();
     } catch { /* ignore already released player */ }
@@ -189,7 +205,20 @@ export default function App() {
   const playSentence = useCallback(async (book: BookRecord, index: number, token: number): Promise<void> => {
     if (token !== runId.current || !shouldContinue.current) return;
     if (index < 0 || index >= book.sentences.length) {
-      setPlaying(false); setPaused(false); shouldContinue.current = false; return;
+      setPlaying(false); setPaused(false); shouldContinue.current = false;
+      activeNeuralSegmentRef.current = null;
+      try {
+        playerRef.current?.setActiveForLockScreen(false);
+        playerSubscriptionRef.current?.remove();
+        playerSubscriptionRef.current = null;
+        playerRef.current?.pause();
+        playerRef.current?.remove();
+      } catch { /* already released */ }
+      playerRef.current = null;
+      const finishedFile = cachedAudioRef.current;
+      cachedAudioRef.current = null;
+      if (finishedFile) { try { finishedFile.delete(); } catch { /* cleanup only */ } }
+      return;
     }
     const sentence = book.sentences[index] ?? "";
     setCurrentSentence(index);
@@ -213,28 +242,45 @@ export default function App() {
       const file = new File(Paths.cache, "readaloud-" + token + "-" + index + ".mp3");
       file.create({ overwrite: true });
       file.write(audioBytes);
+
+      const previousFile = cachedAudioRef.current;
+      if (previousFile) { try { previousFile.delete(); } catch { /* replace old chunk when possible */ } }
       cachedAudioRef.current = file;
-      const audioPlayer = createAudioPlayer(file.uri);
-      playerRef.current = audioPlayer;
-      audioPlayer.setActiveForLockScreen(true, {
-        title: book.title,
-        artist: "ReadAloud",
-        albumTitle: "Your listening library",
-      });
-      const subscription = audioPlayer.addListener("playbackStatusUpdate", (status) => {
-        if (!status.didJustFinish) return;
-        subscription.remove();
-        try {
-          audioPlayer.setActiveForLockScreen(false);
-          audioPlayer.remove();
-        } catch { /* already released */ }
-        if (playerRef.current === audioPlayer) playerRef.current = null;
-        const cached = cachedAudioRef.current;
-        cachedAudioRef.current = null;
-        if (cached) { try { cached.delete(); } catch { /* cleanup only */ } }
-        if (shouldContinue.current && token === runId.current) void playSentence(book, index + 1, token).catch(handlePlaybackError);
-        else { setPlaying(false); setPaused(false); }
-      });
+      activeNeuralSegmentRef.current = { book, index, token };
+
+      let audioPlayer = playerRef.current;
+      if (!audioPlayer) {
+        audioPlayer = createAudioPlayer(file.uri);
+        playerRef.current = audioPlayer;
+        audioPlayer.setActiveForLockScreen(true, {
+          title: book.title,
+          artist: "ReadAloud",
+          albumTitle: "Your listening library",
+        });
+        playerSubscriptionRef.current = audioPlayer.addListener("playbackStatusUpdate", (status) => {
+          if (!status.didJustFinish) return;
+          const segment = activeNeuralSegmentRef.current;
+          if (!segment) return;
+          activeNeuralSegmentRef.current = null;
+          const cached = cachedAudioRef.current;
+          cachedAudioRef.current = null;
+          if (cached) { try { cached.delete(); } catch { /* cleanup only */ } }
+          if (shouldContinue.current && segment.token === runId.current) {
+            void playSentence(segment.book, segment.index + 1, segment.token).catch(handlePlaybackError);
+          } else {
+            setPlaying(false);
+            setPaused(false);
+          }
+        });
+      } else {
+        // Reuse the same native player so lock-screen/background playback survives sentence boundaries.
+        audioPlayer.updateLockScreenMetadata({
+          title: book.title,
+          artist: "ReadAloud",
+          albumTitle: "Your listening library",
+        });
+        audioPlayer.replace(file.uri);
+      }
       audioPlayer.volume = volume;
       audioPlayer.play();
       return;
@@ -283,7 +329,10 @@ export default function App() {
     if (playing && !paused) {
       setPlaying(false);
       setPaused(true);
-      if (provider === "neural") playerRef.current?.pause();
+      if (provider === "neural") {
+        shouldContinue.current = false;
+        playerRef.current?.pause();
+      }
       else if (Platform.OS === "android") await Speech.stop().catch(() => undefined);
       else await Speech.pause().catch(() => undefined);
       feedback(soundEffects);
@@ -292,8 +341,10 @@ export default function App() {
     if (paused) {
       setPlaying(true);
       setPaused(false);
-      if (provider === "neural" && playerRef.current) playerRef.current.play();
-      else if (provider === "system" && Platform.OS !== "android") await Speech.resume().catch(() => undefined);
+      if (provider === "neural" && playerRef.current && cachedAudioRef.current) {
+        shouldContinue.current = true;
+        playerRef.current.play();
+      } else if (provider === "system" && Platform.OS !== "android") await Speech.resume().catch(() => undefined);
       else await start(currentSentence);
       return;
     }
