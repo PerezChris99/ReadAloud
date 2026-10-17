@@ -7,39 +7,72 @@ export function normaliseApiUrl(value: string): string {
   return value.trim().replace(/\/+$/, "");
 }
 
+/** Refuse plaintext remote endpoints before sending documents or credentials. */
+export function validateApiBaseUrl(value: string): string {
+  const baseUrl = normaliseApiUrl(value);
+  if (!baseUrl) throw new Error("Configure the optional ReadAloud API URL in Settings.");
+  let url: URL;
+  try { url = new URL(baseUrl); } catch { throw new Error("Enter a valid ReadAloud API URL."); }
+  const host = url.hostname.toLowerCase();
+  const loopback = host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host.endsWith(".localhost");
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("The ReadAloud API URL must not contain credentials, a query, or a fragment.");
+  }
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
+    throw new Error("Use HTTPS for remote ReadAloud services. HTTP is allowed only for localhost development.");
+  }
+  return baseUrl;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number, timeoutMessage: string): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error(timeoutMessage);
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}
+
 export async function extractWithService(file: File, settings: ApiSettings): Promise<{ text: string; pageCount: number }> {
-  const baseUrl = normaliseApiUrl(settings.baseUrl);
-  if (!baseUrl) throw new Error("PDF text could not be extracted locally. Configure the optional ReadAloud API for PDF/OCR processing.");
+  const baseUrl = validateApiBaseUrl(settings.baseUrl);
   const form = new FormData();
   form.append("file", file, file.name);
-  const response = await fetch(baseUrl + "/v1/documents/extract", {
+  const response = await fetchWithTimeout(baseUrl + "/v1/documents/extract", {
     method: "POST",
     headers: settings.token ? { "X-ReadAloud-Token": settings.token } : {},
     body: form,
-  });
+  }, 120_000, "The document service timed out. Check the connection and try again.");
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { detail?: string };
     throw new Error(payload.detail || "The document service could not index this file.");
   }
-  const payload = await response.json() as { text: string; pageCount?: number };
-  return { text: payload.text, pageCount: payload.pageCount ?? 1 };
+  const payload = await response.json() as { text?: unknown; pageCount?: unknown };
+  if (typeof payload.text !== "string" || payload.text.length > 8_000_000) {
+    throw new Error("The document service returned invalid or oversized extracted text.");
+  }
+  const pageCount = typeof payload.pageCount === "number" && Number.isFinite(payload.pageCount) && payload.pageCount >= 0
+    ? payload.pageCount : 1;
+  return { text: payload.text, pageCount };
 }
 
 export async function neuralSpeechUrl(text: string, voice: string, rate: number, volume: number, settings: ApiSettings): Promise<string> {
-  const baseUrl = normaliseApiUrl(settings.baseUrl);
-  if (!baseUrl) throw new Error("Configure the optional ReadAloud API to use natural neural voices.");
-  const response = await fetch(baseUrl + "/v1/speech", {
+  const baseUrl = validateApiBaseUrl(settings.baseUrl);
+  const response = await fetchWithTimeout(baseUrl + "/v1/speech", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(settings.token ? { "X-ReadAloud-Token": settings.token } : {}),
-    },
+    headers: { "Content-Type": "application/json", ...(settings.token ? { "X-ReadAloud-Token": settings.token } : {}) },
     body: JSON.stringify({ text, voice, rate, volume }),
-  });
+  }, 35_000, "Neural speech timed out. Switch to a system voice or try again.");
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { detail?: string };
     throw new Error(payload.detail || "Neural speech generation failed.");
   }
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.startsWith("audio/")) throw new Error("The speech service returned an unexpected response.");
   const blob = await response.blob();
+  if (blob.size === 0 || blob.size > 8 * 1024 * 1024) throw new Error("The speech service returned empty or oversized audio.");
   return URL.createObjectURL(blob);
 }
