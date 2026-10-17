@@ -70,6 +70,7 @@ flowchart LR
 - `docs/ARCHITECTURE.md` — component boundaries and data flow.
 - `docs/SECURITY.md` — trust boundaries and deployment security baseline.
 - `docs/RELEASE_CHECKLIST.md` — measurable release gates for desktop, Android, iOS, API and stores.
+- `docs/STORE_LISTING.md` — conservative store-listing draft and data-disclosure preparation.
 
 ## Development prerequisites
 
