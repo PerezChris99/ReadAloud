@@ -32,3 +32,19 @@ def test_archive_expansion_limit_is_enforced():
 def test_unsupported_extension_is_rejected():
     with pytest.raises(ValueError, match="Unsupported"):
         extract_document(b"hello", "thing.exe")
+
+
+
+def test_image_ocr_uses_a_bounded_tesseract_timeout(monkeypatch):
+    payload = io.BytesIO()
+    Image.new("RGB", (32, 32), "white").save(payload, format="PNG")
+    observed = {}
+
+    def fake_ocr(image, timeout=None):
+        observed["timeout"] = timeout
+        return "A readable sentence."
+
+    monkeypatch.setattr("app.extractors.pytesseract.image_to_string", fake_ocr)
+    result = extract_document(payload.getvalue(), "scan.png")
+    assert result.text == "A readable sentence."
+    assert observed["timeout"] == 15

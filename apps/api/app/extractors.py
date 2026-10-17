@@ -21,6 +21,7 @@ MAX_ARCHIVE_ENTRIES = 10_000
 MAX_ARCHIVE_UNCOMPRESSED = 200 * 1024 * 1024
 MAX_ARCHIVE_MEMBER = 64 * 1024 * 1024
 MAX_EXTRACTED_CHARACTERS = 8_000_000
+OCR_TIMEOUT_SECONDS = 15
 
 class ExtractionResult(NamedTuple):
     text: str
@@ -96,7 +97,7 @@ def extract_document(data: bytes, filename: str, max_pdf_pages: int = 800, max_o
                                 pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
                                 image = Image.open(io.BytesIO(pix.tobytes("png")))
                                 if image.width * image.height <= MAX_IMAGE_PIXELS:
-                                    page_text = pytesseract.image_to_string(image).strip()
+                                    page_text = pytesseract.image_to_string(image, timeout=OCR_TIMEOUT_SECONDS).strip()
                         except Exception:
                             # Malformed or excessively large pages must not abort all readable pages.
                             page_text = ""
@@ -161,7 +162,7 @@ def extract_document(data: bytes, filename: str, max_pdf_pages: int = 800, max_o
                 if source.width * source.height > MAX_IMAGE_PIXELS:
                     raise ValueError("Image is too large to OCR safely.")
                 image = ImageOps.exif_transpose(source).convert("RGB")
-                text = pytesseract.image_to_string(image)
+                text = pytesseract.image_to_string(image, timeout=OCR_TIMEOUT_SECONDS)
             return ExtractionResult(_check_text_length(text), 1, "image")
         except ValueError:
             raise
