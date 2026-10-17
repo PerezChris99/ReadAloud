@@ -66,6 +66,6 @@ From the repository root:
     npm run dev:desktop
     npm run dev:mobile
 
-The optional API has its own requirements and environment configuration; see apps/api/.env.example when that service is added.
+The Python API is in `apps/api`. To run it locally, create a Python 3.12 virtual environment, install `apps/api/requirements.txt`, install Tesseract OCR, copy `apps/api/.env.example` to `apps/api/.env`, and run `uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 8787`. See [apps/api/README.md](apps/api/README.md). Set the neural speech provider key only on the server. Public production still requires HTTPS, a unique high-entropy service token, Redis rate-limit storage and deployment-specific host/origin configuration.
 
 **Release status:** this codebase is in active build-out, not a released or independently verified app. Real-device installation, mobile-store signing, neural voice credentials, deployment configuration and final legal review are release gates. Do not expose a speech service publicly without authentication, rate limiting and controlled provider spend.

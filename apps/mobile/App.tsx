@@ -20,8 +20,59 @@ import { colors } from "./src/theme";
 type Screen = "home" | "library" | "reader" | "settings" | "about" | "privacy" | "terms";
 type Voice = { identifier: string; name: string; language: string; quality?: string; gender?: string };
 
+function buildChimeWav(): Uint8Array {
+  const sampleRate = 22_050;
+  const sampleCount = Math.floor(sampleRate * 0.18);
+  const dataBytes = sampleCount * 2;
+  const bytes = new Uint8Array(44 + dataBytes);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(0, 0x46464952, true); // RIFF
+  view.setUint32(4, 36 + dataBytes, true);
+  view.setUint32(8, 0x45564157, true); // WAVE
+  view.setUint32(12, 0x20746d66, true); // fmt
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  view.setUint32(36, 0x61746164, true); // data
+  view.setUint32(40, dataBytes, true);
+
+  for (let i = 0; i < sampleCount; i += 1) {
+    const position = i / sampleRate;
+    const frequency = position < 0.085 ? 660 : 880;
+    const localPosition = position < 0.085 ? position : position - 0.085;
+    const envelope = Math.min(1, localPosition / 0.012) * Math.max(0, 1 - position / 0.18);
+    const sample = Math.round(Math.sin(2 * Math.PI * frequency * position) * 1600 * envelope);
+    view.setInt16(44 + i * 2, sample, true);
+  }
+  return bytes;
+}
+
+let chimeFile: File | null = null;
+
 function feedback(enabled: boolean): void {
-  if (enabled) void Haptics.selectionAsync().catch(() => undefined);
+  if (!enabled) return;
+  void Haptics.selectionAsync().catch(() => undefined);
+  try {
+    if (!chimeFile) chimeFile = new File(Paths.cache, "readaloud-ui-chime.wav");
+    if (!chimeFile.exists) {
+      chimeFile.create({ overwrite: true });
+      chimeFile.write(buildChimeWav());
+    }
+    const player = createAudioPlayer(chimeFile.uri);
+    player.volume = 0.12;
+    const subscription = player.addListener("playbackStatusUpdate", (status) => {
+      if (!status.didJustFinish) return;
+      subscription.remove();
+      try { player.remove(); } catch { /* a UI sound must never block reading */ }
+    });
+    player.play();
+  } catch {
+    // UI audio is best-effort; haptics and reading controls remain usable.
+  }
 }
 function displayFormat(book: BookRecord): string {
   return book.format.toUpperCase() === "IMAGE" ? "OCR scan" : book.format.toUpperCase();
@@ -62,11 +113,17 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const [items, url, token, savedVoice] = await Promise.all([
+        const [items, url, token, savedVoice, savedProvider, savedRate, savedVolume, savedEffects, savedCaptions, savedScale] = await Promise.all([
           listBooks(),
           SecureStore.getItemAsync("readaloud.api.url"),
           SecureStore.getItemAsync("readaloud.api.token"),
           SecureStore.getItemAsync("readaloud.voice"),
+          SecureStore.getItemAsync("readaloud.provider"),
+          SecureStore.getItemAsync("readaloud.rate"),
+          SecureStore.getItemAsync("readaloud.volume"),
+          SecureStore.getItemAsync("readaloud.soundEffects"),
+          SecureStore.getItemAsync("readaloud.captionsEnabled"),
+          SecureStore.getItemAsync("readaloud.fontScale"),
         ]);
         if (cancelled) return;
         setBooks(items);
@@ -75,6 +132,15 @@ export default function App() {
         setApiBaseUrl(url ?? "");
         setApiToken(token ?? "");
         setVoice(savedVoice ?? "");
+        setProvider(savedProvider === "neural" ? "neural" : "system");
+        const restoredRate = Number(savedRate ?? "1");
+        const restoredVolume = Number(savedVolume ?? "0.8");
+        const restoredScale = Number(savedScale ?? "1");
+        setRate(Number.isFinite(restoredRate) ? Math.max(0.7, Math.min(1.35, restoredRate)) : 1);
+        setVolume(Number.isFinite(restoredVolume) ? Math.max(0, Math.min(1, restoredVolume)) : 0.8);
+        setSoundEffects(savedEffects !== "false");
+        setCaptionsEnabled(savedCaptions !== "false");
+        setFontScale(Number.isFinite(restoredScale) ? Math.max(0.9, Math.min(1.3, restoredScale)) : 1);
         const available = await Speech.getAvailableVoicesAsync();
         if (!cancelled) setVoices(available as Voice[]);
       } catch {
@@ -194,6 +260,7 @@ export default function App() {
       setPlaying(false);
       setPaused(true);
       if (provider === "neural") playerRef.current?.pause();
+      else if (Platform.OS === "android") await Speech.stop().catch(() => undefined);
       else await Speech.pause().catch(() => undefined);
       feedback(soundEffects);
       return;
@@ -202,7 +269,7 @@ export default function App() {
       setPlaying(true);
       setPaused(false);
       if (provider === "neural" && playerRef.current) playerRef.current.play();
-      else if (provider === "system") await Speech.resume().catch(() => undefined);
+      else if (provider === "system" && Platform.OS !== "android") await Speech.resume().catch(() => undefined);
       else await start(currentSentence);
       return;
     }
@@ -275,9 +342,17 @@ export default function App() {
           throw new Error("Use HTTPS for non-local services.");
         }
       }
-      await SecureStore.setItemAsync("readaloud.api.url", apiBaseUrl.trim().replace(/\\/+$/, ""));
-      await SecureStore.setItemAsync("readaloud.api.token", apiToken);
-      await SecureStore.setItemAsync("readaloud.voice", voice);
+      await Promise.all([
+        SecureStore.setItemAsync("readaloud.api.url", apiBaseUrl.trim().replace(/\\/+$/, "")),
+        SecureStore.setItemAsync("readaloud.api.token", apiToken),
+        SecureStore.setItemAsync("readaloud.voice", voice),
+        SecureStore.setItemAsync("readaloud.provider", provider),
+        SecureStore.setItemAsync("readaloud.rate", String(rate)),
+        SecureStore.setItemAsync("readaloud.volume", String(volume)),
+        SecureStore.setItemAsync("readaloud.soundEffects", String(soundEffects)),
+        SecureStore.setItemAsync("readaloud.captionsEnabled", String(captionsEnabled)),
+        SecureStore.setItemAsync("readaloud.fontScale", String(fontScale)),
+      ]);
       setError("");
       setScreen("settings");
       Alert.alert("Settings saved", "Service credentials are stored in the platform secure store.");

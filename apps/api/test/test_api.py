@@ -36,3 +36,26 @@ def test_empty_upload_is_rejected():
         files={"file": ("empty.txt", b"", "text/plain")},
     )
     assert response.status_code == 422
+
+
+def test_production_gate_fails_without_shared_rate_limit_storage(monkeypatch):
+    from app.main import enforce_production_configuration
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("READALOUD_API_TOKEN", "a" * 40)
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    import pytest
+    with pytest.raises(RuntimeError, match="REDIS_URL"):
+        import asyncio
+        asyncio.run(enforce_production_configuration())
+
+def test_production_gate_rejects_short_service_token(monkeypatch):
+    from app.main import enforce_production_configuration
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("READALOUD_API_TOKEN", "too-short")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    import pytest
+    with pytest.raises(RuntimeError, match="32 characters"):
+        import asyncio
+        asyncio.run(enforce_production_configuration())
