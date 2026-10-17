@@ -83,20 +83,27 @@ def extract_document(data: bytes, filename: str, max_pdf_pages: int = 800, max_o
                 if pdf.page_count > max_pdf_pages:
                     raise ValueError(f"PDF exceeds the {max_pdf_pages}-page processing limit.")
                 pages: list[str] = []
+                total_chars = 0
                 ocr_count = 0
                 for page in pdf:
                     page_text = page.get_text("text").strip()
                     if not page_text and ocr_count < max_ocr_pages:
-                        ocr_count += 1
+                        ocr_count += 1  # Count each OCR page attempt, including failed/oversized pages.
                         try:
-                            pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
-                            image = Image.open(io.BytesIO(pix.tobytes("png")))
-                            page_text = pytesseract.image_to_string(image).strip()
+                            rect = page.rect
+                            estimated_pixels = max(0.0, float(rect.width) * float(rect.height) * 1.5 * 1.5)
+                            if estimated_pixels <= MAX_IMAGE_PIXELS:
+                                pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
+                                image = Image.open(io.BytesIO(pix.tobytes("png")))
+                                if image.width * image.height <= MAX_IMAGE_PIXELS:
+                                    page_text = pytesseract.image_to_string(image).strip()
                         except Exception:
+                            # Malformed or excessively large pages must not abort all readable pages.
                             page_text = ""
-                    pages.append(page_text)
-                    if sum(len(part) for part in pages) > MAX_EXTRACTED_CHARACTERS:
+                    total_chars += len(page_text)
+                    if total_chars > MAX_EXTRACTED_CHARACTERS:
                         raise ValueError("Extracted text exceeds the 8-million-character safety limit.")
+                    pages.append(page_text)
                 return ExtractionResult(_check_text_length("\n\n".join(pages)), pdf.page_count, "pdf")
         except ValueError:
             raise
@@ -125,6 +132,7 @@ def extract_document(data: bytes, filename: str, max_pdf_pages: int = 800, max_o
                 path.write_bytes(data)
                 book = epub.read_epub(str(path), options={"ignore_ncx": True})
                 blocks: list[str] = []
+                total_chars = 0
                 used: set[str] = set()
                 for entry in getattr(book, "spine", []):
                     item_id = entry[0] if isinstance(entry, tuple) else entry
@@ -135,10 +143,11 @@ def extract_document(data: bytes, filename: str, max_pdf_pages: int = 800, max_o
                             tag.decompose()
                         text = soup.get_text(" ", strip=True)
                         if text:
+                            total_chars += len(text)
+                            if total_chars > MAX_EXTRACTED_CHARACTERS:
+                                raise ValueError("Extracted text exceeds the 8-million-character safety limit.")
                             blocks.append(text)
                         used.add(item.get_id())
-                        if sum(len(part) for part in blocks) > MAX_EXTRACTED_CHARACTERS:
-                            raise ValueError("Extracted text exceeds the 8-million-character safety limit.")
                 joined = _check_text_length("\n\n".join(blocks))
                 return ExtractionResult(joined, len(blocks), "epub")
         except ValueError:

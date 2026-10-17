@@ -59,3 +59,22 @@ def test_production_gate_rejects_short_service_token(monkeypatch):
     with pytest.raises(RuntimeError, match="32 characters"):
         import asyncio
         asyncio.run(enforce_production_configuration())
+
+
+def test_production_gate_requires_explicit_host_and_origin_configuration(monkeypatch):
+    import asyncio
+    import pytest
+    from app.main import enforce_production_configuration
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("READALOUD_API_TOKEN", "r" * 48)
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.delenv("READALOUD_ALLOWED_HOSTS", raising=False)
+    monkeypatch.setenv("READALOUD_CORS_ORIGINS", "https://reader.example")
+    with pytest.raises(RuntimeError, match="READALOUD_ALLOWED_HOSTS"):
+        asyncio.run(enforce_production_configuration())
+
+    monkeypatch.setenv("READALOUD_ALLOWED_HOSTS", "reader.example")
+    monkeypatch.delenv("READALOUD_CORS_ORIGINS", raising=False)
+    with pytest.raises(RuntimeError, match="READALOUD_CORS_ORIGINS"):
+        asyncio.run(enforce_production_configuration())

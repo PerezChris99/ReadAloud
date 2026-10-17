@@ -318,7 +318,7 @@ export default function App() {
                 <div className="panel-topline"><span>PAGE PREVIEW</span><span>PAGE {pageIndex + 1} / {Math.max(1, selected.pagePreviews.length)}</span></div>
                 <div className="paper">
                   <div className="paper-running">{selected.title}</div>
-                  <div className="paper-content">{pagePreview.split(/(?<=[.!?])\\s+/).map((part, i) => <span key={i} className={activeSentence && part.includes(activeSentence.slice(0, Math.min(25, activeSentence.length))) ? "page-sentence-active" : ""}>{part} </span>)}</div>
+                  <div className="paper-content">{pagePreview.split(/(?<=[.!?])\s+/).map((part, i) => <span key={i} className={activeSentence && part.includes(activeSentence.slice(0, Math.min(25, activeSentence.length))) ? "page-sentence-active" : ""}>{part} </span>)}</div>
                   <div className="paper-footer"><span>READALOUD</span><span>{String(pageIndex + 1).padStart(2, "0")}</span></div>
                 </div>
                 <div className="page-note"><span className="privacy-dot" /> Page-style preview is generated from extracted text.</div>
