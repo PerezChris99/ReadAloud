@@ -15,7 +15,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from .extractors import ALLOWED_EXTENSIONS, extract_document
-from .security import api_environment, verify_client
+from .security import RequestBodyLimitMiddleware, api_environment, verify_client
 from .speech import VOICE_PRESETS, synthesize_neural_speech
 
 APP_VERSION = "0.2.0"
@@ -73,6 +73,14 @@ async def reject_oversized_declared_body(request: Request, call_next):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Frame-Options"] = "DENY"
     return response
+
+# Starlette parses multipart uploads before entering the endpoint. Bound the
+# actual ASGI body stream as well as the uploaded file, including chunked requests.
+app.add_middleware(
+    RequestBodyLimitMiddleware,
+    max_bytes=MAX_UPLOAD_BYTES + 1024 * 1024,
+    paths={"/v1/documents/extract"},
+)
 
 class SpeechRequest(BaseModel):
     text: str = Field(min_length=1, max_length=4500)
