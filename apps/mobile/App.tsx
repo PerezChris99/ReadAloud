@@ -10,11 +10,11 @@ import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-aud
 import { File, Paths } from "expo-file-system";
 import * as SecureStore from "expo-secure-store";
 import {
-  DEFAULT_PREFERENCES, sentenceToPageIndex, type BookRecord, type ReadingPreferences,
+  DEFAULT_PREFERENCES, sentenceToPageIndex, type BookRecord, type BookSummary, type ReadingPreferences,
 } from "@readaloud/reader-core";
 import { indexMobileDocument } from "./src/documents";
 import type { DocumentApiSettings } from "./src/documents";
-import { listBooks, saveBook, deleteBook, updateReadingPosition } from "./src/storage";
+import { listBooks, getBook, saveBook, deleteBook, updateReadingPosition } from "./src/storage";
 import { colors } from "./src/theme";
 
 type Screen = "home" | "library" | "reader" | "settings" | "about" | "privacy" | "terms";
@@ -80,8 +80,9 @@ function displayFormat(book: BookRecord): string {
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
-  const [books, setBooks] = useState<BookRecord[]>([]);
+  const [books, setBooks] = useState<BookSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedBook, setSelectedBook] = useState<BookRecord | null>(null);
   const [busy, setBusy] = useState(false);
   const [indexProgress, setIndexProgress] = useState(0);
   const [indexLabel, setIndexLabel] = useState("");
@@ -104,7 +105,7 @@ export default function App() {
   const shouldContinue = useRef(false);
   const playerRef = useRef<AudioPlayer | null>(null);
   const cachedAudioRef = useRef<File | null>(null);
-  const selected = books.find((book) => book.id === selectedId) ?? books[0] ?? null;
+  const selected = selectedBook;
   const activeSentence = selected?.sentences[currentSentence] ?? "";
   const pageIndex = selected ? sentenceToPageIndex(selected.sentences, selected.pagePreviews, currentSentence) : 0;
   const pagePreview = selected?.pagePreviews[pageIndex] ?? "";
@@ -133,10 +134,12 @@ export default function App() {
           SecureStore.getItemAsync("readaloud.captionsEnabled"),
           SecureStore.getItemAsync("readaloud.fontScale"),
         ]);
+        const firstBook = items[0] ? await getBook(items[0].id) : null;
         if (cancelled) return;
         setBooks(items);
         setSelectedId(items[0]?.id ?? null);
-        setCurrentSentence(items[0]?.lastSentenceIndex ?? 0);
+        setSelectedBook(firstBook);
+        setCurrentSentence(firstBook?.lastSentenceIndex ?? 0);
         setApiBaseUrl(url ?? "");
         setApiToken(token ?? "");
         setVoice(savedVoice ?? "");
@@ -190,6 +193,7 @@ export default function App() {
     }
     const sentence = book.sentences[index] ?? "";
     setCurrentSentence(index);
+    setBooks((current) => current.map((item) => item.id === book.id ? { ...item, lastSentenceIndex: index } : item));
     await updateReadingPosition(book.id, index);
     if (token !== runId.current || !shouldContinue.current) return;
 
@@ -301,6 +305,7 @@ export default function App() {
     await stop();
     const target = Math.max(0, Math.min(selected.sentences.length - 1, currentSentence + delta));
     setCurrentSentence(target);
+    setBooks((current) => current.map((item) => item.id === selected.id ? { ...item, lastSentenceIndex: target } : item));
     await updateReadingPosition(selected.id, target);
   }, [selected, currentSentence, stop]);
 
@@ -320,7 +325,7 @@ export default function App() {
       });
       await saveBook(book);
       const latest = await listBooks();
-      setBooks(latest); setSelectedId(book.id); setCurrentSentence(0); setScreen("reader");
+      setBooks(latest); setSelectedId(book.id); setSelectedBook(book); setCurrentSentence(0); setScreen("reader");
       setIndexProgress(100); setIndexLabel("Book ready to read");
       setSuccess("“" + book.title + "” is indexed and ready to read.");
       feedback(soundEffects);
@@ -332,12 +337,20 @@ export default function App() {
     }
   }
 
-  async function selectBook(book: BookRecord): Promise<void> {
+  async function selectBook(book: BookSummary): Promise<void> {
     await stop();
     setSelectedId(book.id);
-    setCurrentSentence(book.lastSentenceIndex);
+    setSelectedBook(null);
     setScreen("reader");
-    feedback(soundEffects);
+    try {
+      const fullBook = await getBook(book.id);
+      if (!fullBook) throw new Error("This book is no longer in the local library.");
+      setSelectedBook(fullBook);
+      setCurrentSentence(fullBook.lastSentenceIndex);
+      feedback(soundEffects);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The selected book could not be opened.");
+    }
   }
 
   async function removeSelected(): Promise<void> {
@@ -349,7 +362,9 @@ export default function App() {
           await stop();
           await deleteBook(selected.id);
           const remaining = await listBooks();
-          setBooks(remaining); setSelectedId(remaining[0]?.id ?? null); setCurrentSentence(0);
+          const firstBook = remaining[0] ? await getBook(remaining[0].id) : null;
+          setBooks(remaining); setSelectedId(remaining[0]?.id ?? null); setSelectedBook(firstBook);
+          setCurrentSentence(firstBook?.lastSentenceIndex ?? 0);
           setScreen("library");
         })();
       } },
@@ -407,12 +422,12 @@ export default function App() {
     </View>
   );
 
-  const renderBookCard = (book: BookRecord) => (
+  const renderBookCard = (book: BookSummary) => (
     <Pressable key={book.id} style={styles.bookCard} onPress={() => void selectBook(book)}>
       <View style={[styles.bookCover, book.format === "epub" ? styles.coverYellow : book.format === "pdf" ? styles.coverBlue : styles.coverSmoke]}>
         <Text style={styles.bookCoverText}>{book.format.toUpperCase().slice(0, 3)}</Text>
       </View>
-      <View style={styles.bookInfo}><Text numberOfLines={2} style={styles.bookTitle}>{book.title}</Text><Text style={styles.bookMeta}>{displayFormat(book)} · {book.sentences.length.toLocaleString()} sentences</Text><View style={styles.smallProgress}><View style={[styles.smallProgressFill, { width: Math.round(((book.lastSentenceIndex + 1) / Math.max(1, book.sentences.length)) * 100) + "%" }]} /></View><Text style={styles.bookMeta}>{Math.round(((book.lastSentenceIndex + 1) / Math.max(1, book.sentences.length)) * 100)}% listened</Text></View>
+      <View style={styles.bookInfo}><Text numberOfLines={2} style={styles.bookTitle}>{book.title}</Text><Text style={styles.bookMeta}>{displayFormat(book)} · {book.sentenceCount.toLocaleString()} sentences</Text><View style={styles.smallProgress}><View style={[styles.smallProgressFill, { width: Math.round(((book.lastSentenceIndex + 1) / Math.max(1, book.sentenceCount)) * 100) + "%" }]} /></View><Text style={styles.bookMeta}>{Math.round(((book.lastSentenceIndex + 1) / Math.max(1, book.sentenceCount)) * 100)}% listened</Text></View>
       <Text style={styles.cardArrow}>›</Text>
     </Pressable>
   );
