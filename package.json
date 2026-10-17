@@ -24,7 +24,8 @@
     "build:android": "npm --workspace @readaloud/mobile run build:android",
     "build:ios": "npm --workspace @readaloud/mobile run build:ios",
     "test:desktop-api": "tsx --test apps/desktop/test/api.test.ts",
-    "test:all": "npm run test:core && npm run test:desktop-api"
+    "test:all": "npm run test:js && python -m pytest apps/api/test",
+    "test:js": "npm run test:core && npm run test:desktop-api"
   },
   "devDependencies": {
     "tsx": "4.20.6",
