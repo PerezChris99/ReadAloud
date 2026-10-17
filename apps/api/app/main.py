@@ -145,7 +145,11 @@ async def enforce_production_configuration():
         raise RuntimeError("Production READALOUD_API_TOKEN must contain at least 32 characters.")
     if not os.getenv("REDIS_URL", "").strip():
         raise RuntimeError("REDIS_URL must be configured for shared production rate limits.")
-    if not allowed_hosts or "*" in allowed_hosts or "testserver" in allowed_hosts:
-        raise RuntimeError("Configure explicit production READALOUD_ALLOWED_HOSTS.")
-    if not allowed_origins or "*" in allowed_origins:
-        raise RuntimeError("Configure explicit production READALOUD_CORS_ORIGINS.")
+    host_setting = os.getenv("READALOUD_ALLOWED_HOSTS", "").strip()
+    origin_setting = os.getenv("READALOUD_CORS_ORIGINS", "").strip()
+    production_hosts = [value.strip() for value in host_setting.split(",") if value.strip()]
+    production_origins = [value.strip() for value in origin_setting.split(",") if value.strip()]
+    if not production_hosts or "*" in production_hosts or "testserver" in production_hosts:
+        raise RuntimeError("Set explicit production READALOUD_ALLOWED_HOSTS without wildcard hosts.")
+    if not production_origins or "*" in production_origins:
+        raise RuntimeError("Set explicit production READALOUD_CORS_ORIGINS without wildcard origins.")

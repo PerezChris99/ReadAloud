@@ -86,6 +86,7 @@ export default function App() {
   const [indexProgress, setIndexProgress] = useState(0);
   const [indexLabel, setIndexLabel] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [currentSentence, setCurrentSentence] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -183,7 +184,7 @@ export default function App() {
 
     if (provider === "neural") {
       if (!api.baseUrl) throw new Error("Natural neural voices need a configured ReadAloud service. Add the service URL in Settings.");
-      const response = await fetch(api.baseUrl.replace(/\\/+$/, "") + "/v1/speech", {
+      const response = await fetch(api.baseUrl.replace(/\/+$/, "") + "/v1/speech", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(api.token ? { "X-ReadAloud-Token": api.token } : {}) },
         body: JSON.stringify({ text: sentence, voice: voice || "en-US-JennyNeural", rate, volume }),
@@ -286,6 +287,7 @@ export default function App() {
 
   async function importDocument(): Promise<void> {
     setError("");
+    setSuccess("");
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: "*/*", multiple: false, copyToCacheDirectory: true,
@@ -301,8 +303,10 @@ export default function App() {
       const latest = await listBooks();
       setBooks(latest); setSelectedId(book.id); setCurrentSentence(0); setScreen("reader");
       setIndexProgress(100); setIndexLabel("Book ready to read");
+      setSuccess("“" + book.title + "” is indexed and ready to read.");
       feedback(soundEffects);
     } catch (reason) {
+      setSuccess("");
       setError(reason instanceof Error ? reason.message : "The selected document could not be imported.");
     } finally {
       setBusy(false);
@@ -343,7 +347,7 @@ export default function App() {
         }
       }
       await Promise.all([
-        SecureStore.setItemAsync("readaloud.api.url", apiBaseUrl.trim().replace(/\\/+$/, "")),
+        SecureStore.setItemAsync("readaloud.api.url", apiBaseUrl.trim().replace(/\/+$/, "")),
         SecureStore.setItemAsync("readaloud.api.token", apiToken),
         SecureStore.setItemAsync("readaloud.voice", voice),
         SecureStore.setItemAsync("readaloud.provider", provider),
@@ -407,6 +411,7 @@ export default function App() {
         <Text style={styles.supported}>PDF · EPUB · Word · Text · HTML · Markdown · Images/OCR</Text>
       </View>
       {busy && <View style={styles.indexCard}><View style={styles.indexRow}><ActivityIndicator color={colors.skyDeep}/><View style={styles.indexCopy}><Text style={styles.indexTitle}>Getting your book ready</Text><Text style={styles.indexSub}>{indexLabel}</Text></View><Text style={styles.indexPercent}>{indexProgress}%</Text></View><View style={styles.progressTrack}><View style={[styles.progressFill, { width: indexProgress + "%" }]}/></View></View>}
+      {success ? <Pressable style={styles.successBox} onPress={() => setSuccess("")}><Text style={styles.successText}>{success}  ×</Text></Pressable> : null}
       {error ? <Pressable style={styles.errorBox} onPress={() => setError("")}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
       <View style={styles.sectionHeading}><View><Text style={styles.sectionTitle}>Pick up where you left off</Text><Text style={styles.sectionSub}>Your library stays on this device.</Text></View><Pressable onPress={() => setScreen("library")}><Text style={styles.link}>View library →</Text></Pressable></View>
       {books.slice(0, 2).map(renderBookCard)}
@@ -421,6 +426,7 @@ export default function App() {
       <View style={styles.pageHeading}><Text style={styles.eyebrow}>YOUR READING SHELF</Text><Text style={styles.screenTitle}>Your library</Text><Text style={styles.pageDescription}>Your indexed books are ready to listen to, even after you leave this screen.</Text></View>
       <Pressable style={styles.importOutline} onPress={() => void importDocument()}><Text style={styles.importOutlineText}>＋  Import document or book</Text></Pressable>
       {busy && <View style={styles.indexCard}><View style={styles.indexRow}><ActivityIndicator color={colors.skyDeep}/><View style={styles.indexCopy}><Text style={styles.indexTitle}>Indexing your document</Text><Text style={styles.indexSub}>{indexLabel}</Text></View><Text style={styles.indexPercent}>{indexProgress}%</Text></View><View style={styles.progressTrack}><View style={[styles.progressFill, { width: indexProgress + "%" }]}/></View></View>}
+      {success ? <Pressable style={styles.successBox} onPress={() => setSuccess("")}><Text style={styles.successText}>{success}  ×</Text></Pressable> : null}
       {error ? <Pressable style={styles.errorBox} onPress={() => setError("")}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
       {books.map(renderBookCard)}
       {books.length === 0 && <View style={styles.emptyCard}><Text style={styles.emptyTitle}>Your shelf is still quiet.</Text><Text style={styles.emptyCopy}>Import PDF, EPUB, DOCX, text, HTML, Markdown, RTF or a scanned image.</Text></View>}
@@ -449,6 +455,7 @@ export default function App() {
         <Pressable accessibilityLabel="Next sentence" style={styles.skipButton} onPress={() => void move(1)} disabled={currentSentence >= selected.sentences.length - 1}><Text style={styles.skipGlyph}>⏭</Text><Text style={styles.skipLabel}>NEXT</Text></Pressable>
       </View>
       <View style={styles.readerSettingsRow}><Text style={styles.bookMeta}>Voice: {provider === "neural" ? (voice || "Jenny Neural") : (voices.find((item) => item.identifier === voice)?.name || "System voice")}</Text><Pressable onPress={() => setScreen("settings")}><Text style={styles.link}>Adjust settings →</Text></Pressable></View>
+      {success ? <Pressable style={styles.successBox} onPress={() => setSuccess("")}><Text style={styles.successText}>{success}  ×</Text></Pressable> : null}
       {error ? <Pressable style={styles.errorBox} onPress={() => setError("")}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
     </ScrollView>
   );
@@ -564,6 +571,7 @@ const styles = StyleSheet.create({
   indexRow: { flexDirection: "row", alignItems: "center", gap: 10 }, indexCopy: { flex: 1, gap: 3 }, indexTitle: { color: colors.ink, fontWeight: "800", fontSize: 11 }, indexSub: { color: colors.muted, fontSize: 9 }, indexPercent: { color: "#88701F", fontWeight: "800", fontSize: 11 },
   progressTrack: { height: 5, borderRadius: 5, overflow: "hidden", backgroundColor: "#EDF0F3" }, progressFill: { height: 5, backgroundColor: colors.skyDeep },
   errorBox: { backgroundColor: "#FFF2F2", borderColor: "#EFCFCF", borderWidth: 1, borderRadius: 12, padding: 12 }, errorText: { color: colors.red, fontSize: 11, lineHeight: 17 },
+  successBox: { backgroundColor: "#EAF8F0", borderColor: "#C7E8D4", borderWidth: 1, borderRadius: 12, padding: 12 }, successText: { color: colors.green, fontSize: 11, lineHeight: 17 },
   pageHeading: { paddingTop: 8, gap: 8 }, screenTitle: { color: colors.ink, fontSize: 28, lineHeight: 34, letterSpacing: -0.8, fontWeight: "900" }, pageDescription: { color: colors.secondary, fontSize: 11, lineHeight: 17 },
   importOutline: { borderWidth: 1, borderColor: "#D7EAF2", backgroundColor: "#F5FCFF", borderRadius: 12, padding: 14, alignItems: "center" }, importOutlineText: { color: colors.skyDeep, fontSize: 11, fontWeight: "800" },
   readerHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }, readerTitleArea: { flex: 1, gap: 6 }, deleteText: { color: colors.red, fontSize: 11, fontWeight: "700", paddingTop: 4 },
