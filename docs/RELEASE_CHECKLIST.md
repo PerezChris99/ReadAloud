@@ -9,6 +9,7 @@
 - [ ] Verify sentence captions, page preview, pause/resume, skip, speed/volume and saved progress on long books.
 - [ ] Confirm user-facing failures for invalid, encrypted, malformed, oversized, empty and unparseable files.
 - [ ] Verify no document is sent to a remote service unless configured and required by the selected feature.
+- [ ] Lock the device and background the app during a long book; verify sustained audio, interruptions, pause/resume, and cleanup when stopping or switching books.
 
 ## Security and operations
 - [ ] Configure HTTPS, trusted hosts, exact CORS origins, high-entropy service token and Azure provider secret.
