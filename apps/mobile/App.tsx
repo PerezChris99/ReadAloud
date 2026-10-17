@@ -16,8 +16,9 @@ import { indexMobileDocument, requestNeuralSpeech } from "./src/documents";
 import type { DocumentApiSettings } from "./src/documents";
 import { listBooks, getBook, saveBook, deleteBook, updateReadingPosition } from "./src/storage";
 import { colors } from "./src/theme";
+import { LEGAL_COPY } from "./src/legal";
 
-type Screen = "home" | "library" | "reader" | "settings" | "about" | "privacy" | "terms";
+type Screen = "home" | "library" | "reader" | "settings" | "about" | "privacy" | "terms" | "license";
 type Voice = { identifier: string; name: string; language: string; quality?: string; gender?: string };
 
 function buildChimeWav(): Uint8Array {
@@ -492,7 +493,7 @@ export default function App() {
       {books.slice(0, 2).map(renderBookCard)}
       {books.length === 0 && <View style={styles.emptyCard}><Text style={styles.emptyIcon}>✧</Text><Text style={styles.emptyTitle}>A story is waiting for you.</Text><Text style={styles.emptyCopy}>Import a book to build your private listening library.</Text></View>}
       <View style={styles.featureStrip}><View style={styles.featureIcon}><Text>♫</Text></View><View style={styles.featureText}><Text style={styles.featureTitle}>Made for long-form listening</Text><Text style={styles.featureCopy}>Page previews and captions follow the sentence being read. Choose a system voice or connect an optional neural voice service.</Text></View></View>
-      <View style={styles.linksRow}><Pressable onPress={() => setScreen("about")}><Text style={styles.link}>About ReadAloud</Text></Pressable><Pressable onPress={() => setScreen("privacy")}><Text style={styles.link}>Privacy</Text></Pressable><Pressable onPress={() => setScreen("terms")}><Text style={styles.link}>Terms</Text></Pressable></View>
+      <View style={styles.linksRow}><Pressable onPress={() => setScreen("about")}><Text style={styles.link}>About ReadAloud</Text></Pressable><Pressable onPress={() => setScreen("privacy")}><Text style={styles.link}>Privacy</Text></Pressable><Pressable onPress={() => setScreen("terms")}><Text style={styles.link}>Terms</Text></Pressable><Pressable onPress={() => setScreen("license")}><Text style={styles.link}>License</Text></Pressable></View>
     </ScrollView>
   );
 
@@ -576,24 +577,10 @@ export default function App() {
         {screen === "library" && renderLibrary()}
         {screen === "reader" && renderReader()}
         {screen === "settings" && renderSettings()}
-        {screen === "about" && renderStaticPage("A little more story in your day.", "WHY READALOUD EXISTS", [
-          "ReadAloud is being built to make novels, books, reports and long documents easier to enjoy through listening. It pairs a calm reading player with page previews and sentence-by-sentence captions so readers can stay oriented as the voice moves through a book.",
-          "The product is created by PerezChris99. The goal is to make long-form reading more accessible, comfortable and flexible across desktop and mobile devices, while keeping a reader's personal library private by default.",
-          "ReadAloud is in active development. Voice quality depends on installed device voices or a configured neural speech provider. Some document formats use the optional extraction service."
-        ])}
-        {screen === "privacy" && renderStaticPage("Privacy at ReadAloud", "LEGAL · PRIVACY", [
-          "ReadAloud stores the indexed text of imported books and the reading position in local application storage on this device. The original document is not deleted or modified by importing it.",
-          "Most supported text formats are indexed locally. On mobile, PDF extraction and image OCR use the configured ReadAloud API because the native client does not contain an on-device PDF/OCR engine. A document is not sent to that service unless you configure a service endpoint and import a format that requires it.",
-          "If neural voice mode is enabled, the sentence currently being read is sent to the configured ReadAloud API, which forwards it to its configured speech provider. The API is designed not to retain uploaded document content or generated audio. Your service operator and its provider may process data under their own terms.",
-          "The app does not currently require an account and the client does not implement advertising analytics. Deleting a book removes its local extracted text and saved reading index. Cloud backup or cross-device synchronisation is not currently provided.",
-          "Before public release, the publisher must add a monitored legal/support contact and have this notice reviewed for the jurisdictions and third-party providers actually used."
-        ])}
-        {screen === "terms" && renderStaticPage("Terms of use", "LEGAL · TERMS", [
-          "Use ReadAloud only with documents you own or are authorised to access and process. You remain responsible for copyright, licensing, and any restrictions imposed by a document's owner.",
-          "ReadAloud is provided as an in-development application. Document extraction, optical character recognition, installed voices and third-party neural voice providers can make mistakes or be unavailable. Do not rely on generated speech as the authoritative version of a legal, medical, financial, academic or safety-critical document.",
-          "Neural speech and remote extraction require a service endpoint and may incur third-party charges. The operator must configure authentication, rate limits, provider billing protections and privacy terms before offering that service publicly.",
-          "The publisher should add a legal/support contact, governing-law provisions, commercial-use terms, and appropriate liability language after qualified legal review before public distribution."
-        ])}
+        {screen === "about" && renderStaticPage("About ReadAloud", "THE PROJECT", [...LEGAL_COPY.about.paragraphs])}
+        {screen === "privacy" && renderStaticPage("Privacy Notice", "LEGAL · PRIVACY", [...LEGAL_COPY.privacy.paragraphs])}
+        {screen === "terms" && renderStaticPage("Terms of Use", "LEGAL · TERMS", [...LEGAL_COPY.terms.paragraphs])}
+        {screen === "license" && renderStaticPage("Proprietary License", "LEGAL · ALL RIGHTS RESERVED", [...LEGAL_COPY.license.paragraphs])}
       </KeyboardAvoidingView>
       {renderTabBar()}
     </SafeAreaView>

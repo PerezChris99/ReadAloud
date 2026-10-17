@@ -4,6 +4,7 @@ import { DEFAULT_PREFERENCES, sentenceToPageIndex } from "@readaloud/reader-core
 import { indexDocument } from "./lib/documents";
 import { listBooks, getBook, removeBook, saveBook, updateReadingPosition } from "./lib/storage";
 import { neuralSpeechUrl, normaliseApiUrl, type ApiSettings } from "./lib/api";
+import { LEGAL_COPY } from "./lib/legal";
 
 type Notice = { tone: "good" | "warn" | "error"; message: string } | null;
 
@@ -49,7 +50,7 @@ export default function App() {
   const [apiBase, setApiBase] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [showSettings, setShowSettings] = useState(false);
-  const [infoPage, setInfoPage] = useState<"about" | "privacy" | "terms" | null>(null);
+  const [infoPage, setInfoPage] = useState<"about" | "privacy" | "terms" | "license" | null>(null);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -354,7 +355,7 @@ export default function App() {
             </div>
           </section>
         )}
-        <footer className="app-footer"><span>Designed for a quieter kind of focus.</span><div><button onClick={() => setInfoPage("privacy")}>Privacy</button><button onClick={() => setInfoPage("terms")}>Terms</button><button onClick={() => setInfoPage("about")}>About</button><span>ReadAloud · v0.2</span></div></footer>
+        <footer className="app-footer"><span>Designed for a quieter kind of focus.</span><div><button onClick={() => setInfoPage("privacy")}>Privacy</button><button onClick={() => setInfoPage("terms")}>Terms</button><button onClick={() => setInfoPage("about")}>About</button><button onClick={() => setInfoPage("license")}>License</button><span>ReadAloud · v0.2</span></div></footer>
       </main>
 
 
@@ -362,24 +363,9 @@ export default function App() {
         <section className="settings-modal information-modal" role="dialog" aria-modal="true" aria-labelledby="information-title">
           <button className="modal-close" aria-label="Close information" onClick={() => setInfoPage(null)}>×</button>
           <span className="pill">{infoPage === "about" ? "WHY READALOUD EXISTS" : "READALOUD · LEGAL"}</span>
-          <h2 id="information-title">{infoPage === "about" ? "A little more story in your day." : infoPage === "privacy" ? "Privacy Notice" : "Terms of Use"}</h2>
+          <h2 id="information-title">{infoPage === "about" ? "About ReadAloud" : infoPage === "privacy" ? "Privacy Notice" : infoPage === "terms" ? "Terms of Use" : "Proprietary License"}</h2>
           <div className="legal-copy">
-            {(infoPage === "about" ? [
-              "ReadAloud is being built for people who want to enjoy novels, books, reports and long documents by listening. It combines a calm player, page-style previews and sentence-synchronised captions so readers can follow along without losing their place.",
-              "Built by PerezChris99, ReadAloud aims to make long-form reading more comfortable and accessible across desktop and mobile devices, while keeping a reader’s library private by default.",
-              "The product is in active development. Natural neural voices, PDF/OCR processing and some format support require a configured service; available built-in voices depend on the device."
-            ] : infoPage === "privacy" ? [
-              "ReadAloud keeps imported reading text and saved progress in local app storage by default. The original document is not modified or deleted when imported. The desktop library uses IndexedDB; the mobile library uses SQLite.",
-              "Most supported formats are processed locally. The mobile client sends PDFs and image scans to the ReadAloud API only when a service URL has been explicitly configured. Desktop PDF/OCR fallback and neural speech also use that configured service.",
-              "When neural voice is enabled, the current sentence is sent to the configured ReadAloud API, which forwards it to the configured speech provider. The API is designed not to retain uploaded documents or generated audio, but provider and service-operator processing terms still apply.",
-              "This application currently has no account service, advertising analytics, cloud library synchronisation or cloud backup. Removing a book deletes its local extracted text and index, not the original source file.",
-              "This notice is a product disclosure draft, not jurisdiction-specific legal advice. The publisher must add a monitored support/legal contact and review this text against the real deployment and provider agreements before public release."
-            ] : [
-              "Use ReadAloud only with books and documents you own or are authorised to access and process. You remain responsible for copyright, licensing and any restrictions imposed by a document's owner.",
-              "ReadAloud is an in-development application. Text extraction, OCR, installed voices and third-party neural speech may be incomplete, inaccurate or unavailable. Do not rely on generated speech as the authoritative version of legal, medical, financial, academic or safety-critical content.",
-              "Remote extraction and neural speech require a configured service and may incur third-party charges. Operators must configure authentication, rate limits, provider billing protections and privacy terms before offering the service publicly.",
-              "Before public distribution, the publisher should obtain legal review and add the appropriate operator identity, support contact, governing law, commercial-use terms and liability provisions."
-            ]).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+            {LEGAL_COPY[infoPage].paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
           </div>
           <div className="modal-actions"><button className="button primary" onClick={() => setInfoPage(null)}>Close</button></div>
         </section>
