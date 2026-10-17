@@ -1,0 +1,33 @@
+{
+  "name": "@readaloud/mobile",
+  "version": "0.2.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "build:android": "npx eas-cli build --platform android --profile production",
+    "build:ios": "npx eas-cli build --platform ios --profile production",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@readaloud/reader-core": "0.2.0",
+    "expo": "56.0.0",
+    "expo-audio": "56.0.0",
+    "expo-document-picker": "56.0.0",
+    "expo-file-system": "56.0.11",
+    "expo-haptics": "56.0.0",
+    "expo-secure-store": "56.0.0",
+    "expo-speech": "56.0.3",
+    "expo-sqlite": "56.0.0",
+    "fast-xml-parser": "5.2.5",
+    "fflate": "0.8.2",
+    "react": "19.2.0",
+    "react-native": "0.85.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}
