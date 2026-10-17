@@ -40,7 +40,8 @@ async def synthesize_neural_speech(text: str, voice: str, rate: float, volume: f
     timeout = httpx.Timeout(connect=5.0, read=25.0, write=5.0, pool=5.0)
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-            response = await client.post(
+            async with client.stream(
+                "POST",
                 endpoint,
                 content=ssml.encode("utf-8"),
                 headers={
@@ -49,12 +50,21 @@ async def synthesize_neural_speech(text: str, voice: str, rate: float, volume: f
                     "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
                     "User-Agent": "ReadAloud/0.2",
                 },
-            )
-            if response.status_code != 200:
-                raise HTTPException(status_code=502, detail="The neural speech provider rejected this request.")
-            if not response.content or len(response.content) > 8 * 1024 * 1024:
-                raise HTTPException(status_code=502, detail="The speech provider returned an invalid audio payload.")
-            return response.content
+            ) as response:
+                if response.status_code != 200:
+                    raise HTTPException(status_code=502, detail="The neural speech provider rejected this request.")
+                # Enforce the cap while receiving bytes, not after httpx has buffered an
+                # arbitrarily large provider response into memory.
+                chunks: list[bytes] = []
+                total_bytes = 0
+                async for chunk in response.aiter_bytes():
+                    total_bytes += len(chunk)
+                    if total_bytes > 8 * 1024 * 1024:
+                        raise HTTPException(status_code=502, detail="The speech provider returned an oversized audio payload.")
+                    chunks.append(chunk)
+                if total_bytes == 0:
+                    raise HTTPException(status_code=502, detail="The speech provider returned an empty audio payload.")
+                return b"".join(chunks)
     except HTTPException:
         raise
     except httpx.TimeoutException as exc:

@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -114,7 +115,7 @@ async def extract(request: Request, file: UploadFile = File(...)):
     if not data:
         raise HTTPException(status_code=422, detail="The selected document is empty.")
     try:
-        result = extract_document(data, filename, MAX_PDF_PAGES, MAX_OCR_PAGES)
+        result = await run_in_threadpool(extract_document, data, filename, MAX_PDF_PAGES, MAX_OCR_PAGES)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
