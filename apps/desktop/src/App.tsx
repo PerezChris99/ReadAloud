@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { BookRecord, ReadingPreferences } from "@readaloud/reader-core";
+import type { BookRecord, BookSummary, ReadingPreferences } from "@readaloud/reader-core";
 import { DEFAULT_PREFERENCES, sentenceToPageIndex } from "@readaloud/reader-core";
 import { indexDocument } from "./lib/documents";
-import { listBooks, removeBook, saveBook, updateReadingPosition } from "./lib/storage";
+import { listBooks, getBook, removeBook, saveBook, updateReadingPosition } from "./lib/storage";
 import { normaliseApiUrl, type ApiSettings } from "./lib/api";
 
 type Notice = { tone: "good" | "warn" | "error"; message: string } | null;
@@ -33,8 +33,9 @@ function chime(enabled: boolean, kind: "select" | "success" | "play" | "stop" = 
 }
 
 export default function App() {
-  const [books, setBooks] = useState<BookRecord[]>([]);
+  const [books, setBooks] = useState<BookSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedBook, setSelectedBook] = useState<BookRecord | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [indexProgress, setIndexProgress] = useState(0);
   const [indexLabel, setIndexLabel] = useState("");
@@ -55,7 +56,7 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const shouldContinue = useRef(false);
-  const selected = books.find((book) => book.id === selectedId) ?? books[0] ?? null;
+  const selected = selectedBook;
   const api: ApiSettings = useMemo(() => ({ baseUrl: normaliseApiUrl(apiBase), token: apiToken }), [apiBase, apiToken]);
   const activeSentence = selected?.sentences[sentenceIndex] ?? "";
   const pageIndex = selected ? sentenceToPageIndex(selected.sentences, selected.pagePreviews, sentenceIndex) : 0;
@@ -63,18 +64,26 @@ export default function App() {
   const progressPercent = selected?.sentences.length ? Math.round(((sentenceIndex + 1) / selected.sentences.length) * 100) : 0;
 
   useEffect(() => {
-    void listBooks().then((data) => {
-      setBooks(data);
-      if (data[0]) {
-        setSelectedId(data[0].id);
-        setSentenceIndex(data[0].lastSentenceIndex);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await listBooks();
+        const firstBook = data[0] ? await getBook(data[0].id) : null;
+        if (cancelled) return;
+        setBooks(data);
+        setSelectedId(data[0]?.id ?? null);
+        setSelectedBook(firstBook);
+        setSentenceIndex(firstBook?.lastSentenceIndex ?? 0);
+      } catch {
+        if (!cancelled) setNotice({ tone: "error", message: "The local library could not be opened. Check available storage and restart ReadAloud." });
       }
-    }).catch(() => setNotice({ tone: "error", message: "The local library could not be opened. Check available storage and restart ReadAloud." }));
+    })();
     const speech = window.speechSynthesis;
     const refresh = () => setVoices(speech.getVoices());
     refresh();
     speech.addEventListener("voiceschanged", refresh);
     return () => {
+      cancelled = true;
       speech.removeEventListener("voiceschanged", refresh);
       shouldContinue.current = false;
       speech.cancel();
@@ -101,6 +110,7 @@ export default function App() {
       return;
     }
     setSentenceIndex(index);
+    setBooks((current) => current.map((item) => item.id === book.id ? { ...item, lastSentenceIndex: index } : item));
     await updateReadingPosition(book.id, index);
     const sentence = book.sentences[index] ?? "";
     if (!sentence) return;
@@ -197,6 +207,7 @@ export default function App() {
     stopPlayback();
     const next = Math.max(0, Math.min(selected.sentences.length - 1, sentenceIndex + delta));
     setSentenceIndex(next);
+    setBooks((current) => current.map((item) => item.id === selected.id ? { ...item, lastSentenceIndex: next } : item));
     void updateReadingPosition(selected.id, next);
     chime(effects, "select");
   }, [selected, sentenceIndex, stopPlayback, effects]);
@@ -215,6 +226,7 @@ export default function App() {
       const latest = await listBooks();
       setBooks(latest);
       setSelectedId(book.id);
+      setSelectedBook(book);
       setSentenceIndex(0);
       setIndexProgress(100);
       setIndexLabel("Book ready to read");
@@ -231,16 +243,23 @@ export default function App() {
     stopPlayback();
     await removeBook(selected.id);
     const remaining = await listBooks();
+    const firstBook = remaining[0] ? await getBook(remaining[0].id) : null;
     setBooks(remaining);
     setSelectedId(remaining[0]?.id ?? null);
-    setSentenceIndex(0);
+    setSelectedBook(firstBook);
+    setSentenceIndex(firstBook?.lastSentenceIndex ?? 0);
     setNotice({ tone: "good", message: "Book removed from the local library." });
   }
 
-  function selectBook(book: BookRecord): void {
+  function selectBook(book: BookSummary): void {
     stopPlayback();
     setSelectedId(book.id);
+    setSelectedBook(null);
     setSentenceIndex(book.lastSentenceIndex);
+    void getBook(book.id).then((record) => {
+      if (record) setSelectedBook(record);
+      else setNotice({ tone: "error", message: "This book is no longer in the local library." });
+    }).catch(() => setNotice({ tone: "error", message: "The selected book could not be opened." }));
     chime(effects, "select");
   }
 
@@ -264,7 +283,7 @@ export default function App() {
           {books.map((book) => (
             <button key={book.id} className={"book-row" + (selected?.id === book.id ? " selected" : "")} onClick={() => selectBook(book)}>
               <span className={"book-icon format-" + book.format}>{book.format === "epub" ? "EP" : book.format.toUpperCase().slice(0, 2)}</span>
-              <span className="book-row-text"><strong>{book.title}</strong><small>{book.format.toUpperCase()} · {book.sentences.length.toLocaleString()} sentences</small></span>
+              <span className="book-row-text"><strong>{book.title}</strong><small>{book.format.toUpperCase()} · {book.sentenceCount.toLocaleString()} sentences</small></span>
             </button>
           ))}
           {books.length === 0 && <p className="empty-sidebar">Your next chapter starts here.</p>}

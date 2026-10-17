@@ -45,3 +45,8 @@ Most formats are extracted on-device. Mobile PDF/image extraction and neural spe
 ## Known limits
 
 Preview pages are generated from extracted text and do not reproduce the exact typography or layout of the original PDF/ebook. Sentence captions are aligned by reading order, not phoneme timing or word-level highlighting. Neural audio generation per sentence can introduce network latency; production needs measured playback performance and provider quota controls.
+
+
+## Library memory model
+
+Library views query a metadata-only summary (title, format, sentence count, saved position and index timestamp). Full sentence arrays and preview-page content are loaded only when a reader opens a particular book. Desktop IndexedDB separates summaries from book data and migrates existing version-1 entries; mobile SQLite selects metadata-only columns for library listings. The original extracted text is not stored a second time because the indexed sentence list already contains the readable text.

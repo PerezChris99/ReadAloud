@@ -22,6 +22,20 @@ export interface BookRecord {
   totalCharacters: number;
 }
 
+export interface BookSummary {
+  id: string;
+  title: string;
+  fileName: string;
+  format: SupportedFormat;
+  pageCount: number;
+  indexedAt: string;
+  status: IndexStatus;
+  progress: number;
+  lastSentenceIndex: number;
+  totalCharacters: number;
+  sentenceCount: number;
+}
+
 export interface ReaderState {
   status: PlaybackStatus;
   sentenceIndex: number;
