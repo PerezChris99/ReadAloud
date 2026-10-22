@@ -8,6 +8,7 @@ This is a source-level audit of the GitHub repository and targeted code changes 
 
 ### Playback and responsiveness
 - Moved sentence-position persistence off the desktop/mobile speech hot path. A local database write is no longer awaited before beginning each sentence.
+- Changed desktop progress persistence to update only the compact library summary. Previously every sentence change loaded and rewrote the entire IndexedDB book record, including all sentence and page-preview arrays.
 - Removed the mobile system-voice promise chain that could retain unresolved promises across an entire long book.
 - Added desktop playback-run tokens to prevent stale neural requests and stale audio callbacks from restarting playback or overwriting the current run after stop/track changes.
 - Added mobile neural-audio prefetch for the next sentence while the current segment plays. This can reduce request-boundary gaps, but cannot eliminate slow network/provider latency.
