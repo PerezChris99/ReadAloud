@@ -138,12 +138,13 @@ export default function App() {
           SecureStore.getItemAsync("readaloud.captionsEnabled"),
           SecureStore.getItemAsync("readaloud.fontScale"),
         ]);
-        const firstBook = items[0] ? await getBook(items[0].id) : null;
         if (cancelled) return;
+        // Keep launch lightweight: summaries are enough for Home/Library. Load the
+        // potentially large sentence index only after the user opens a book.
         setBooks(items);
         setSelectedId(items[0]?.id ?? null);
-        setSelectedBook(firstBook);
-        setCurrentSentence(firstBook?.lastSentenceIndex ?? 0);
+        setSelectedBook(null);
+        setCurrentSentence(0);
         setApiBaseUrl(url ?? "");
         setApiToken(token ?? "");
         setVoice(savedVoice ?? "");
