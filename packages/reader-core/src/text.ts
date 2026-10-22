@@ -78,16 +78,52 @@ export function makePagePreviews(input: string, maxChars = DEFAULT_PAGE_CHARACTE
   return pages.filter(Boolean);
 }
 
+// Cache cumulative character offsets by array identity. A book's sentence and page
+// arrays are immutable during reading, so this avoids rebuilding huge prefixes on
+// every caption update while allowing garbage collection when a book is released.
+const sentencePrefixCache = new WeakMap<string[], number[]>();
+const pageLengthCache = new WeakMap<string[], number[]>();
+
+function getSentencePrefixLengths(sentences: string[]): number[] {
+  const cached = sentencePrefixCache.get(sentences);
+  if (cached) return cached;
+  const prefix = new Array<number>(sentences.length + 1);
+  prefix[0] = 0;
+  for (let index = 0; index < sentences.length; index += 1) {
+    prefix[index + 1] = (prefix[index] ?? 0) + (sentences[index]?.length ?? 0) + (index > 0 ? 1 : 0);
+  }
+  sentencePrefixCache.set(sentences, prefix);
+  return prefix;
+}
+
+function getPageCumulativeLengths(pages: string[]): number[] {
+  const cached = pageLengthCache.get(pages);
+  if (cached) return cached;
+  const cumulative = new Array<number>(pages.length);
+  let total = 0;
+  for (let index = 0; index < pages.length; index += 1) {
+    total += pages[index]?.length ?? 0;
+    cumulative[index] = total;
+  }
+  pageLengthCache.set(pages, cumulative);
+  return cumulative;
+}
+
 export function sentenceToPageIndex(sentences: string[], pages: string[], sentenceIndex: number): number {
   if (sentences.length === 0 || pages.length === 0) return 0;
-  const safeIndex = Math.max(0, Math.min(sentenceIndex, sentences.length - 1));
-  const prefixLength = sentences.slice(0, safeIndex).join(" ").length;
-  let consumed = 0;
-  for (let index = 0; index < pages.length; index += 1) {
-    consumed += pages[index]?.length ?? 0;
-    if (prefixLength <= consumed) return index;
+  const safeIndex = Math.max(0, Math.min(Math.floor(sentenceIndex), sentences.length - 1));
+  const prefixLength = getSentencePrefixLengths(sentences)[safeIndex] ?? 0;
+  const cumulative = getPageCumulativeLengths(pages);
+
+  // Find the first page whose cumulative text length covers this sentence offset.
+  let low = 0;
+  let high = cumulative.length - 1;
+  while (low < high) {
+    const middle = low + Math.floor((high - low) / 2);
+    if ((cumulative[middle] ?? 0) > prefixLength) high = middle;
+    else low = middle + 1;
   }
-  return pages.length - 1;
+  return low;
 }
 
 export function createInitialReaderState(): ReaderState {
