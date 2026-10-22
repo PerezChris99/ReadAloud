@@ -16,7 +16,8 @@
       "package": "app.readaloud.reader",
       "minSdkVersion": 26,
       "adaptiveIcon": {
-        "backgroundColor": "#F4CF4F"
+        "backgroundColor": "#F5F5F7",
+        "foregroundImage": "./assets/icon.png"
       },
       "softwareKeyboardLayoutMode": "pan"
     },
@@ -37,6 +38,7 @@
     "extra": {
       "product": "ReadAloud",
       "privacyFirst": true
-    }
+    },
+    "icon": "./assets/icon.png"
   }
 }
