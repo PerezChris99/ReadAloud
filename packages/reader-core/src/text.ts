@@ -120,7 +120,7 @@ export function sentenceToPageIndex(sentences: string[], pages: string[], senten
   let high = cumulative.length - 1;
   while (low < high) {
     const middle = low + Math.floor((high - low) / 2);
-    if ((cumulative[middle] ?? 0) >= prefixLength) high = middle;
+    if ((cumulative[middle] ?? 0) > prefixLength) high = middle;
     else low = middle + 1;
   }
   return low;
