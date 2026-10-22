@@ -224,7 +224,7 @@ export default function App() {
     const sentence = book.sentences[index] ?? "";
     setCurrentSentence(index);
     setBooks((current) => current.map((item) => item.id === book.id ? { ...item, lastSentenceIndex: index } : item));
-    await updateReadingPosition(book.id, index);
+    void updateReadingPosition(book.id, index).catch(() => undefined);
     if (token !== runId.current || !shouldContinue.current) return;
 
     if (provider === "neural") {
@@ -282,8 +282,12 @@ export default function App() {
         voice: voice || undefined,
         rate,
         onDone: () => {
-          if (token === runId.current && shouldContinue.current) void playSentence(book, index + 1, token).then(resolve).catch(reject);
-          else resolve();
+          // Do not chain one unresolved promise per sentence for the lifetime of a long book.
+          // Schedule the next utterance and release this sentence's promise immediately.
+          if (token === runId.current && shouldContinue.current) {
+            void playSentence(book, index + 1, token).catch(handlePlaybackError);
+          }
+          resolve();
         },
         onStopped: resolve,
         onError: (reason) => reject(new Error(typeof reason === "string" ? reason : "System speech failed.")),
