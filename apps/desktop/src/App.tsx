@@ -169,6 +169,7 @@ export default function App() {
         window.speechSynthesis.speak(utterance);
       }
     } catch (error) {
+      if (runToken !== playbackRunRef.current) return;
       setPlaying(false);
       shouldContinue.current = false;
       setNotice({ tone: "error", message: error instanceof Error ? error.message : "Speech playback failed." });
