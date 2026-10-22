@@ -69,6 +69,7 @@ flowchart LR
 - `packages/reader-core` — shared types, format validation, text normalization, sentence segmentation, previews and playback-domain logic.
 - `docs/ARCHITECTURE.md` — component boundaries and data flow.
 - `docs/SECURITY.md` — trust boundaries and deployment security baseline.
+- `docs/ENGINEERING_AUDIT.md` — source audit findings, implemented bottleneck fixes and remaining launch gates.
 - `docs/RELEASE_CHECKLIST.md` — measurable release gates for desktop, Android, iOS, API and stores.
 - `docs/GIT_WORKFLOW.md` — required `perez` → PR → `main` branch discipline and manual validation rules.
 - `docs/releases/0.2.0-prerelease.md` — factual pre-release notes and promotion gates; not a claim of published binaries.
