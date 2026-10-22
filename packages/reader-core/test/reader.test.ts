@@ -20,6 +20,10 @@ test("page previews are bounded and preserve trailing text", () => {
   assert.ok(pages.every((page) => page.length <= 600));
   assert.ok(pages.join("\n\n").includes("Paragraph 18:"));
   assert.equal(sentenceToPageIndex(["one", "two"], ["one", "two"], 1), 1);
+  assert.equal(sentenceToPageIndex(["one", "two", "three"], ["one", "two", "three"], 0), 0);
+  assert.equal(sentenceToPageIndex(["one", "two", "three"], ["one", "two", "three"], 2), 2);
+  assert.equal(sentenceToPageIndex(["one", "two"], ["one", "two"], 99), 1);
+  assert.equal(sentenceToPageIndex(["one", "two"], ["one", "two"], -5), 0);
 });
 test("reader state transitions guard empty books and complete at the last sentence", () => {
   let state = createInitialReaderState();
