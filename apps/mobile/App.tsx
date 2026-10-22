@@ -167,6 +167,7 @@ export default function App() {
       runId.current += 1;
       shouldContinue.current = false;
       activeNeuralSegmentRef.current = null;
+      neuralPrefetchRef.current = null;
       void Speech.stop();
       try {
         playerRef.current?.setActiveForLockScreen(false);
