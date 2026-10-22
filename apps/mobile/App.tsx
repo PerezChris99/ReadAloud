@@ -108,6 +108,7 @@ export default function App() {
   const playerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const activeNeuralSegmentRef = useRef<{ book: BookRecord; index: number; token: number } | null>(null);
   const cachedAudioRef = useRef<File | null>(null);
+  const neuralPrefetchRef = useRef<{ token: number; index: number; promise: Promise<Uint8Array> } | null>(null);
   const selected = selectedBook;
   const activeSentence = selected?.sentences[currentSentence] ?? "";
   const pageIndex = selected ? sentenceToPageIndex(selected.sentences, selected.pagePreviews, currentSentence) : 0;
@@ -185,6 +186,7 @@ export default function App() {
     runId.current += 1;
     shouldContinue.current = false;
     activeNeuralSegmentRef.current = null;
+    neuralPrefetchRef.current = null;
     await Speech.stop().catch(() => undefined);
     try {
       playerRef.current?.setActiveForLockScreen(false);
@@ -228,7 +230,11 @@ export default function App() {
     if (token !== runId.current || !shouldContinue.current) return;
 
     if (provider === "neural") {
-      const audioBytes = await requestNeuralSpeech(sentence, voice || "en-US-JennyNeural", rate, volume, api);
+      const prefetched = neuralPrefetchRef.current;
+      neuralPrefetchRef.current = null;
+      const audioBytes = prefetched && prefetched.token === token && prefetched.index === index
+        ? await prefetched.promise
+        : await requestNeuralSpeech(sentence, voice || "en-US-JennyNeural", rate, volume, api);
       if (token !== runId.current || !shouldContinue.current) return;
       const file = new File(Paths.cache, "readaloud-" + token + "-" + index + ".mp3");
       file.create({ overwrite: true });
@@ -274,6 +280,15 @@ export default function App() {
       }
       audioPlayer.volume = volume;
       audioPlayer.play();
+
+      // Fetch the next sentence while this segment is audible to reduce network gaps.
+      // Playback still validates the run token before consuming prefetched bytes.
+      const nextIndex = index + 1;
+      if (nextIndex < book.sentences.length && token === runId.current && shouldContinue.current) {
+        const promise = requestNeuralSpeech(book.sentences[nextIndex] ?? "", voice || "en-US-JennyNeural", rate, volume, api);
+        neuralPrefetchRef.current = { token, index: nextIndex, promise };
+        void promise.catch(() => undefined);
+      }
       return;
     }
 
