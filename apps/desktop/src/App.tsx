@@ -112,7 +112,7 @@ export default function App() {
     }
     setSentenceIndex(index);
     setBooks((current) => current.map((item) => item.id === book.id ? { ...item, lastSentenceIndex: index } : item));
-    await updateReadingPosition(book.id, index);
+    void updateReadingPosition(book.id, index).catch(() => undefined);
     const sentence = book.sentences[index] ?? "";
     if (!sentence) return;
     try {
