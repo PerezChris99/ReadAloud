@@ -57,6 +57,7 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const shouldContinue = useRef(false);
+  const playbackRunRef = useRef(0);
   const selected = selectedBook;
   const api: ApiSettings = useMemo(() => ({ baseUrl: normaliseApiUrl(apiBase), token: apiToken }), [apiBase, apiToken]);
   const activeSentence = selected?.sentences[sentenceIndex] ?? "";
@@ -93,6 +94,7 @@ export default function App() {
   }, []);
 
   const stopPlayback = useCallback((reset = false) => {
+    playbackRunRef.current += 1;
     shouldContinue.current = false;
     window.speechSynthesis.cancel();
     audioRef.current?.pause();
@@ -104,7 +106,8 @@ export default function App() {
     chime(effects, "stop");
   }, [effects]);
 
-  const speakIndex = useCallback(async (book: BookRecord, index: number) => {
+  const speakIndex = useCallback(async (book: BookRecord, index: number, runToken: number): Promise<void> => {
+    if (runToken !== playbackRunRef.current || !shouldContinue.current) return;
     if (index < 0 || index >= book.sentences.length) {
       setPlaying(false);
       shouldContinue.current = false;
@@ -118,19 +121,25 @@ export default function App() {
     try {
       if (provider === "neural") {
         const objectUrl = await neuralSpeechUrl(sentence, voice, rate, volume, api);
+        if (runToken !== playbackRunRef.current || !shouldContinue.current) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
         audioUrlRef.current = objectUrl;
         const audio = new Audio(objectUrl);
         audio.volume = volume;
         audioRef.current = audio;
         audio.onended = () => {
           URL.revokeObjectURL(objectUrl);
+          if (runToken !== playbackRunRef.current) return;
           if (audioUrlRef.current === objectUrl) audioUrlRef.current = null;
           if (audioRef.current === audio) audioRef.current = null;
-          if (shouldContinue.current) void speakIndex(book, index + 1);
+          if (shouldContinue.current && runToken === playbackRunRef.current) void speakIndex(book, index + 1, runToken);
           else setPlaying(false);
         };
         audio.onerror = () => {
           URL.revokeObjectURL(objectUrl);
+          if (runToken !== playbackRunRef.current) return;
           if (audioUrlRef.current === objectUrl) audioUrlRef.current = null;
           if (audioRef.current === audio) audioRef.current = null;
           setPlaying(false);
@@ -145,10 +154,12 @@ export default function App() {
         utterance.rate = rate;
         utterance.volume = volume;
         utterance.onend = () => {
-          if (shouldContinue.current) void speakIndex(book, index + 1);
+          if (runToken !== playbackRunRef.current) return;
+          if (shouldContinue.current) void speakIndex(book, index + 1, runToken);
           else setPlaying(false);
         };
         utterance.onerror = (event) => {
+          if (runToken !== playbackRunRef.current) return;
           if (event.error === "canceled" || event.error === "interrupted") return;
           setPlaying(false);
           shouldContinue.current = false;
@@ -158,6 +169,7 @@ export default function App() {
         window.speechSynthesis.speak(utterance);
       }
     } catch (error) {
+      if (runToken !== playbackRunRef.current) return;
       setPlaying(false);
       shouldContinue.current = false;
       setNotice({ tone: "error", message: error instanceof Error ? error.message : "Speech playback failed." });
@@ -191,7 +203,8 @@ export default function App() {
     shouldContinue.current = true;
     setPlaying(true);
     chime(effects, "play");
-    void speakIndex(selected, sentenceIndex >= selected.sentences.length - 1 ? 0 : sentenceIndex);
+    const runToken = ++playbackRunRef.current;
+    void speakIndex(selected, sentenceIndex >= selected.sentences.length - 1 ? 0 : sentenceIndex, runToken);
   }, [selected, playing, provider, effects, speakIndex, sentenceIndex]);
 
   const moveSentence = useCallback((delta: number) => {
