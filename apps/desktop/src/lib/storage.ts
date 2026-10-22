@@ -60,7 +60,16 @@ export async function listBooks(): Promise<BookSummary[]> {
 
 export async function getBook(bookId: string): Promise<BookRecord | null> {
   const db = await getDatabase();
-  return (await db.get("bookData", bookId)) ?? null;
+  const tx = db.transaction(["books", "bookData"], "readonly");
+  const [record, summary] = await Promise.all([
+    tx.objectStore("bookData").get(bookId),
+    tx.objectStore("books").get(bookId),
+  ]);
+  await tx.done;
+  if (!record) return null;
+  // Reading position lives in the small summary row so playback progress does
+  // not require rewriting or returning a potentially huge sentence index.
+  return { ...record, lastSentenceIndex: summary?.lastSentenceIndex ?? record.lastSentenceIndex };
 }
 
 export async function saveBook(book: BookRecord): Promise<void> {
@@ -75,12 +84,13 @@ export async function saveBook(book: BookRecord): Promise<void> {
 
 export async function updateReadingPosition(bookId: string, sentenceIndex: number): Promise<void> {
   const db = await getDatabase();
-  const tx = db.transaction(["books", "bookData"], "readwrite");
-  const content = await tx.objectStore("bookData").get(bookId);
-  const summary = await tx.objectStore("books").get(bookId);
-  const position = Math.max(0, sentenceIndex);
-  if (content) await tx.objectStore("bookData").put({ ...content, lastSentenceIndex: position });
-  if (summary) await tx.objectStore("books").put({ ...summary, lastSentenceIndex: position });
+  // Only touch the compact summary record on sentence changes. Reading the
+  // full bookData object here would deserialize and rewrite every sentence
+  // and page preview once per sentence, causing severe long-book I/O churn.
+  const tx = db.transaction("books", "readwrite");
+  const summaryStore = tx.objectStore("books");
+  const summary = await summaryStore.get(bookId);
+  if (summary) await summaryStore.put({ ...summary, lastSentenceIndex: Math.max(0, Math.floor(sentenceIndex)) });
   await tx.done;
 }
 
