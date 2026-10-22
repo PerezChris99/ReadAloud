@@ -70,12 +70,16 @@ export default function App() {
     void (async () => {
       try {
         const data = await listBooks();
-        const firstBook = data[0] ? await getBook(data[0].id) : null;
         if (cancelled) return;
+        // Render the library from summaries before hydrating a potentially large book.
         setBooks(data);
         setSelectedId(data[0]?.id ?? null);
+        setSelectedBook(null);
+        setSentenceIndex(data[0]?.lastSentenceIndex ?? 0);
+        const firstBook = data[0] ? await getBook(data[0].id) : null;
+        if (cancelled) return;
         setSelectedBook(firstBook);
-        setSentenceIndex(firstBook?.lastSentenceIndex ?? 0);
+        setSentenceIndex(firstBook?.lastSentenceIndex ?? data[0]?.lastSentenceIndex ?? 0);
       } catch {
         if (!cancelled) setNotice({ tone: "error", message: "The local library could not be opened. Check available storage and restart ReadAloud." });
       }
