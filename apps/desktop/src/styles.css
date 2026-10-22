@@ -64,3 +64,20 @@ body, .main-panel { background: var(--smoke); color: var(--ink); }
   .welcome-grid, .reader-grid { grid-template-columns: minmax(0, 1fr); }
   .top-actions { flex-wrap: wrap; }
 }
+
+/* Signature wireframe watermark: decorative only, never intercepts input. */
+.welcome-card::after {
+  content: "";
+  position: absolute;
+  width: min(46%, 310px);
+  aspect-ratio: 1;
+  right: -14px;
+  top: 28px;
+  background: url('/wireframe-sphere.svg') center / contain no-repeat;
+  opacity: .22;
+  pointer-events: none;
+  z-index: -1;
+}
+@media (max-width: 800px) {
+  .welcome-card::after { width: min(54%, 230px); right: -30px; top: 48px; opacity: .15; }
+}
