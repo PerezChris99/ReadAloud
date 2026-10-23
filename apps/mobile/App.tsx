@@ -117,7 +117,6 @@ export default function App() {
   const api: DocumentApiSettings = useMemo(() => ({ baseUrl: apiBaseUrl.trim(), token: apiToken }), [apiBaseUrl, apiToken]);
 
   useEffect(() => {
-    const initialSelectionRun = bookSelectionRun.current;
     void setAudioModeAsync({
       playsInSilentMode: true,
       shouldPlayInBackground: true,
@@ -384,6 +383,7 @@ export default function App() {
       if (result.canceled) return;
       const asset = result.assets[0];
       if (!asset) return;
+      bookSelectionRun.current += 1;
       setBusy(true); setIndexProgress(1); setIndexLabel("Preparing import");
       const book = await indexMobileDocument(asset.uri, asset.name, asset.size ?? 0, api, (progress, label) => {
         setIndexProgress(progress); setIndexLabel(label);
