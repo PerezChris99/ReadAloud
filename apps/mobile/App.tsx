@@ -103,6 +103,7 @@ export default function App() {
   const [apiBaseUrl, setApiBaseUrl] = useState("");
   const [apiToken, setApiToken] = useState("");
   const runId = useRef(0);
+  const bookSelectionRun = useRef(0);
   const shouldContinue = useRef(false);
   const playerRef = useRef<AudioPlayer | null>(null);
   const playerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
@@ -116,6 +117,7 @@ export default function App() {
   const api: DocumentApiSettings = useMemo(() => ({ baseUrl: apiBaseUrl.trim(), token: apiToken }), [apiBaseUrl, apiToken]);
 
   useEffect(() => {
+    const initialSelectionRun = bookSelectionRun.current;
     void setAudioModeAsync({
       playsInSilentMode: true,
       shouldPlayInBackground: true,
@@ -401,23 +403,29 @@ export default function App() {
   }
 
   async function selectBook(book: BookSummary): Promise<void> {
+    const selectionRun = ++bookSelectionRun.current;
     await stop();
+    if (selectionRun !== bookSelectionRun.current) return;
     setSelectedId(book.id);
     setSelectedBook(null);
     setScreen("reader");
     try {
       const fullBook = await getBook(book.id);
+      if (selectionRun !== bookSelectionRun.current) return;
       if (!fullBook) throw new Error("This book is no longer in the local library.");
       setSelectedBook(fullBook);
       setCurrentSentence(fullBook.lastSentenceIndex);
       feedback(soundEffects);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The selected book could not be opened.");
+      if (selectionRun === bookSelectionRun.current) {
+        setError(reason instanceof Error ? reason.message : "The selected book could not be opened.");
+      }
     }
   }
 
   async function removeSelected(): Promise<void> {
     if (!selected) return;
+    bookSelectionRun.current += 1;
     Alert.alert("Remove this book?", "This removes its local reading index, not the original file.", [
       { text: "Cancel", style: "cancel" },
       { text: "Remove", style: "destructive", onPress: () => {
