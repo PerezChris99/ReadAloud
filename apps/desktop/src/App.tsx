@@ -68,6 +68,9 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    // Capture before the first await so a user selection made while the library
+    // summary query is pending cannot be overwritten by startup hydration.
+    const initialSelectionRun = selectionRunRef.current;
     void (async () => {
       try {
         const data = await listBooks();
@@ -77,7 +80,6 @@ export default function App() {
         setSelectedId(data[0]?.id ?? null);
         setSelectedBook(null);
         setSentenceIndex(data[0]?.lastSentenceIndex ?? 0);
-        const initialSelectionRun = selectionRunRef.current;
         const firstBook = data[0] ? await getBook(data[0].id) : null;
         if (cancelled || initialSelectionRun !== selectionRunRef.current) return;
         setSelectedBook(firstBook);

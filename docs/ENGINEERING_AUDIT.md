@@ -99,3 +99,24 @@ The desktop build requires its supported native host toolchain; Android requires
 ### Follow-up conclusion
 
 The second pass found and corrected a real cross-platform stale-selection race and reviewed the workspace, TypeScript, Expo, Tauri and API package/runtime configuration. **The code is not yet certifiable as build-clean** because the lockfile, clean dependency installation, executed checks and native builds are still outstanding. A claim of zero errors would be unsupported until those checks pass.
+
+## Flow-hardening follow-up — 2026-10-23
+
+A second pass over the initialization sequence found a narrower timing window in the desktop startup race guard: the initial selection token was captured only after awaiting the library-summary query. A manual selection made while that query was pending could therefore still be overwritten by startup hydration. The token is now captured synchronously at effect entry, before any asynchronous work, and compared after full-book hydration. This complements the selection tokens merged in PR #40.
+
+### End-to-end flow coverage still required
+
+Use representative small, large, malformed, encrypted and unsupported documents on both platforms. Verify each transition rather than only the happy path:
+
+1. Launch with an empty library; launch with one book; launch with many books.
+2. Select A then B rapidly while local storage is delayed; B must remain selected.
+3. Import while a book is opening; the new import must not be replaced by a stale result.
+4. Cancel an import, fail an import, retry an import, and import the same file twice.
+5. Play, pause, resume, seek, change voice/provider, change books during audio fetch, stop during audio fetch, and recover from offline/provider errors.
+6. Confirm progress persists across app restart without writing full sentence arrays per sentence.
+7. Delete a book while it is selected or loading; cancel deletion and confirm the book remains.
+8. Test permissions, app background/foreground, headphones/audio interruptions, database upgrade from existing installs, and a full offline system-voice reading session.
+9. Exercise PDF OCR/API timeout, invalid token, oversized body, empty extraction, malformed ZIP/EPUB/DOCX and service unavailable responses.
+10. Validate desktop installer install/upgrade/uninstall and Android/iOS install/upgrade on supported OS versions.
+
+These are acceptance scenarios, not tests claimed to have run. The repository currently lacks a runnable local environment in this session, so no test/build pass has been inferred.
