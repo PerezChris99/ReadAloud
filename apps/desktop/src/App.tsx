@@ -225,6 +225,7 @@ export default function App() {
 
   async function importFile(file?: File): Promise<void> {
     if (!file) return;
+    selectionRunRef.current += 1;
     setNotice(null);
     setIndexProgress(1);
     setIndexLabel("Preparing import");
