@@ -56,3 +56,46 @@ Some commands are platform-specific; iOS requires macOS/Xcode and signing creden
 ## Current conclusion
 
 The code has received targeted fixes for source-confirmed playback and rendering bottlenecks and the visual system has been aligned. **Build, test, signing, device, performance, install-size and release assurance remain unverified.** This document is an execution checklist, not a claim that those gates have passed.
+
+## Follow-up whole-repository audit — 2026-10-23
+
+### Additional source issue found and corrected
+
+- **Asynchronous book-selection race (desktop and mobile):** opening a book is asynchronous because the complete sentence index is read from local storage. If a user selected book A and then book B before A's read completed, A's slower result could overwrite B's active reader state. The startup hydration path on desktop had the same race with a user selection. Added monotonically increasing selection tokens so stale reads and stale errors are ignored; desktop deletion and mobile import/deletion invalidate older selection requests. This is a source-level correction; it still requires runtime regression testing on both platforms.
+
+### Static package/configuration review
+
+- The root npm workspace declares all three JavaScript workspaces and uses exact versions for its direct dependencies. TypeScript strictness is enabled in the shared config.
+- The desktop Tauri config points at the Vite output, configures NSIS as the Windows bundle target, and grants only the default Tauri core capability in its declared capability file.
+- The mobile Expo config declares Android API 26, an iOS deployment target, package/bundle identifiers, the app icon and audio/document/storage plugins.
+- The Python API has pinned direct requirements, a separate pinned development requirements file, a non-root container user, request-size limits, and production startup checks for token, Redis and explicit host/origin configuration.
+- Static inspection is not a substitute for validating Expo config-plugin option support, Tauri schema validation, Python dependency resolution, Rust dependency resolution or native platform toolchains.
+
+### Remaining issues that prevent a “perfect / no build errors” claim
+
+1. **No root `package-lock.json`:** the npm workspace is not reproducible yet. I did not fabricate a lockfile. It must be generated with the repository's supported Node/npm versions in a network-enabled clean checkout and committed before a clean `npm ci` can be the installation gate.
+2. **No executed tests/builds:** GitHub source access is available, but this session does not have a working network-enabled local checkout or native build toolchains. JavaScript tests, TypeScript checks, Python tests, Vite/Tauri packaging, Android and iOS builds remain unexecuted; no pass is inferred.
+3. **No dependency audit evidence:** npm, Python and Cargo transitive dependency resolution/advisory checks remain pending until package installation can run. The versions in manifests have not been proven mutually compatible by a successful clean install.
+4. **No native runtime evidence:** no physical-device test can establish audio lifecycle, permissions, background playback, document-picker behavior, storage migrations, install/upgrade/uninstall, or the 25 MB installed-size target from source review alone.
+5. **No release artifacts:** signing, checksums, store validation and release publication remain gated on successful builds and real artifacts.
+
+### Follow-up validation commands
+
+Run from a clean checkout using Node 22.13+ and npm 10.9+; install the API development requirements in the active Python environment first:
+
+```sh
+npm ci
+npm run test:core
+npm run test:desktop-api
+npm run typecheck
+python -m pytest apps/api/test
+npm run build:desktop
+npm run build:android
+npm run build:ios
+```
+
+The desktop build requires its supported native host toolchain; Android requires its SDK/toolchain; iOS requires macOS/Xcode and signing setup. Record each actual exit code and logs. No GitHub Actions workflows were added.
+
+### Follow-up conclusion
+
+The second pass found and corrected a real cross-platform stale-selection race and reviewed the workspace, TypeScript, Expo, Tauri and API package/runtime configuration. **The code is not yet certifiable as build-clean** because the lockfile, clean dependency installation, executed checks and native builds are still outstanding. A claim of zero errors would be unsupported until those checks pass.

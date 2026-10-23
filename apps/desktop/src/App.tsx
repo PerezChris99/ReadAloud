@@ -58,6 +58,7 @@ export default function App() {
   const audioUrlRef = useRef<string | null>(null);
   const shouldContinue = useRef(false);
   const playbackRunRef = useRef(0);
+  const selectionRunRef = useRef(0);
   const selected = selectedBook;
   const api: ApiSettings = useMemo(() => ({ baseUrl: normaliseApiUrl(apiBase), token: apiToken }), [apiBase, apiToken]);
   const activeSentence = selected?.sentences[sentenceIndex] ?? "";
@@ -76,8 +77,9 @@ export default function App() {
         setSelectedId(data[0]?.id ?? null);
         setSelectedBook(null);
         setSentenceIndex(data[0]?.lastSentenceIndex ?? 0);
+        const initialSelectionRun = selectionRunRef.current;
         const firstBook = data[0] ? await getBook(data[0].id) : null;
-        if (cancelled) return;
+        if (cancelled || initialSelectionRun !== selectionRunRef.current) return;
         setSelectedBook(firstBook);
         setSentenceIndex(firstBook?.lastSentenceIndex ?? data[0]?.lastSentenceIndex ?? 0);
       } catch {
@@ -223,6 +225,7 @@ export default function App() {
 
   async function importFile(file?: File): Promise<void> {
     if (!file) return;
+    selectionRunRef.current += 1;
     setNotice(null);
     setIndexProgress(1);
     setIndexLabel("Preparing import");
@@ -249,6 +252,7 @@ export default function App() {
 
   async function deleteSelected(): Promise<void> {
     if (!selected || !window.confirm("Remove “" + selected.title + "” and its local reading index? The original file will not be deleted.")) return;
+    selectionRunRef.current += 1;
     stopPlayback();
     await removeBook(selected.id);
     const remaining = await listBooks();
@@ -261,14 +265,18 @@ export default function App() {
   }
 
   function selectBook(book: BookSummary): void {
+    const selectionRun = ++selectionRunRef.current;
     stopPlayback();
     setSelectedId(book.id);
     setSelectedBook(null);
     setSentenceIndex(book.lastSentenceIndex);
     void getBook(book.id).then((record) => {
+      if (selectionRun !== selectionRunRef.current) return;
       if (record) setSelectedBook(record);
       else setNotice({ tone: "error", message: "This book is no longer in the local library." });
-    }).catch(() => setNotice({ tone: "error", message: "The selected book could not be opened." }));
+    }).catch(() => {
+      if (selectionRun === selectionRunRef.current) setNotice({ tone: "error", message: "The selected book could not be opened." });
+    });
     chime(effects, "select");
   }
 
