@@ -251,6 +251,7 @@ export default function App() {
 
   async function deleteSelected(): Promise<void> {
     if (!selected || !window.confirm("Remove “" + selected.title + "” and its local reading index? The original file will not be deleted.")) return;
+    selectionRunRef.current += 1;
     stopPlayback();
     await removeBook(selected.id);
     const remaining = await listBooks();
