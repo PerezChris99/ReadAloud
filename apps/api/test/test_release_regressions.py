@@ -86,5 +86,5 @@ def test_empty_epub_archive_is_rejected_before_epub_parser():
     with zipfile.ZipFile(payload, "w") as archive:
         archive.writestr("unrelated.txt", "not an EPUB")
 
-    with pytest.raises(ValueError, match="EPUB container metadata is missing"):
+    with pytest.raises(ValueError, match="EPUB book could not be opened or parsed"):
         extract_document(payload.getvalue(), "not-a-book.epub")
