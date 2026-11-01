@@ -487,7 +487,7 @@ The following source-level regression tests supplement the earlier scenario matr
 | Test area | Added assertions |
 |---|---|
 | Reader state/input safety | NaN and infinite sentence totals become an empty reader state; non-finite sentence indexes resolve safely |
-| Page preview boundaries | Reject non-finite/out-of-range page sizes; preserve long unbroken tokens without exceeding the requested page size |
+| Page preview boundaries | Reject non-finite/out-of-range page sizes; preserve long unbroken tokens without exceeding the requested page size |\n| ZIP safety configuration | Reject NaN, infinite and negative caller-supplied archive resource limits before inspecting untrusted archive bytes |\n| Oversized request handling | Both chunked and declared-Content-Length rejections return 413 with no-store and baseline security headers |
 | API DOCX extraction | Paragraph and table-cell text survive extraction |
 | API PDF extraction | Page-count cap is enforced; encrypted PDFs are rejected; malformed PDFs return a safe validation error |
 | API archive handling | ZIP entry-count and per-member expanded-size limits are enforced; a non-EPUB ZIP is rejected before EPUB parsing |
