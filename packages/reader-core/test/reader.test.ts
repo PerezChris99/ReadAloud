@@ -134,3 +134,11 @@ test("page preview builder rejects unsafe page sizes and preserves long unbroken
   assert.equal(pages.join(""), token);
   assert.ok(pages.every((page) => page.length <= 300));
 });
+
+
+test("safe ZIP validator rejects invalid caller-supplied resource limits", () => {
+  const bytes = new Uint8Array();
+  assert.throws(() => assertSafeZipArchive(bytes, { maxEntries: Number.NaN }), RangeError);
+  assert.throws(() => assertSafeZipArchive(bytes, { maxExpandedBytes: Number.POSITIVE_INFINITY }), RangeError);
+  assert.throws(() => assertSafeZipArchive(bytes, { maxMemberBytes: -1 }), RangeError);
+});
