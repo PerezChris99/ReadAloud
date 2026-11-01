@@ -2,7 +2,7 @@
 
 ## Trust boundaries
 - Imported files are untrusted input. The clients impose a 50 MiB maximum file size and an 8-million-character extracted-text ceiling.
-- The optional API validates extension, body size, PDF page count, raster pixel count, text length for speech, and allowed neural voices.
+- The optional API validates extension, document body size, a separate 64 KiB speech JSON body ceiling (including chunked requests), PDF page count, raster pixel count, text length for speech, and allowed neural voices.
 - Provider credentials remain server-side. Never put Azure Speech secrets or production API tokens into the React Native or desktop bundles.
 - The API returns generic parser errors, does not intentionally retain upload contents or output audio, and uses no-store / nosniff response headers.
 
