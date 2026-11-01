@@ -93,6 +93,6 @@ class RequestBodyLimitMiddleware:
         await send({
             "type": "http.response.start",
             "status": status_code,
-            "headers": [(b"content-type", b"text/plain; charset=utf-8"), (b"cache-control", b"no-store")],
+            "headers": [(b"content-type", b"text/plain; charset=utf-8"), (b"cache-control", b"no-store"), (b"x-content-type-options", b"nosniff"), (b"referrer-policy", b"no-referrer"), (b"x-frame-options", b"DENY")],
         })
         await send({"type": "http.response.body", "body": message, "more_body": False})
