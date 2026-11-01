@@ -1,5 +1,8 @@
 # ReadAloud release checklist
 
+The detailed case-by-case acceptance specification is [RELEASE_TEST_PLAN.md](./RELEASE_TEST_PLAN.md). Execute and attach evidence for every applicable P0 case before changing any release item to complete.
+
+
 Use this as a go/no-go record. Check an item only after the command, artifact, device test, configuration review or approval has actually passed. Record build IDs, platform/OS version, logs and evidence in the release record. A source change alone does not make a runtime check green.
 
 ## 1. Reproducible source and build
