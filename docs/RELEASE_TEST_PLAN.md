@@ -492,6 +492,6 @@ The following source-level regression tests supplement the earlier scenario matr
 | API PDF extraction | Page-count cap is enforced; encrypted PDFs are rejected; malformed PDFs return a safe validation error |
 | API archive handling | ZIP entry-count and per-member expanded-size limits are enforced; a non-EPUB ZIP is rejected before EPUB parsing |
 | API text limits | Extracted character cap rejects content above the configured limit |
-| Mobile persistence | Reading-position writes floor fractional indexes and clamp negative values to zero |
+| Mobile persistence | Source hardening now floors fractional indexes and clamps negative values to zero; add runtime persistence verification to the platform/device suite |
 
 These tests validate selected boundaries, not the complete acceptance matrix. Passing them would not replace native builds, end-to-end tests, security review or device verification.
