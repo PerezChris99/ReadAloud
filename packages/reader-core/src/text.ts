@@ -111,7 +111,7 @@ function getPageCumulativeLengths(pages: string[]): number[] {
 
 export function sentenceToPageIndex(sentences: string[], pages: string[], sentenceIndex: number): number {
   if (sentences.length === 0 || pages.length === 0) return 0;
-  const requestedIndex = Number.isFinite(sentenceIndex) ? Math.floor(sentenceIndex) : 0;
+  const requestedIndex = Number.isNaN(sentenceIndex) ? 0 : Math.floor(sentenceIndex);
   const safeIndex = Math.max(0, Math.min(requestedIndex, sentences.length - 1));
   const prefixLength = getSentencePrefixLengths(sentences)[safeIndex] ?? 0;
   const cumulative = getPageCumulativeLengths(pages);
