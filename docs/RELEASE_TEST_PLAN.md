@@ -478,3 +478,20 @@ For each platform, attach:
 The repository has a small set of reader-core, desktop API URL and Python API tests. Those tests have not been executed in the current audit environment. The root npm workspace lockfile was not present at the audited main commit. No signed production AAB/IPA, physical-device test evidence, public store approval or release artifacts were verified.
 
 Therefore all runtime and store cases above begin as **NOT RUN**. The test plan does not itself certify the app. The release gate is met only when the evidence record is complete and all P0 cases pass.
+
+
+## Additional automated regression coverage added in this release-readiness branch
+
+The following source-level regression tests supplement the earlier scenario matrix. They remain **NOT RUN** until a clean toolchain is available.
+
+| Test area | Added assertions |
+|---|---|
+| Reader state/input safety | NaN and infinite sentence totals become an empty reader state; non-finite sentence indexes resolve safely |
+| Page preview boundaries | Reject non-finite/out-of-range page sizes; preserve long unbroken tokens without exceeding the requested page size |
+| API DOCX extraction | Paragraph and table-cell text survive extraction |
+| API PDF extraction | Page-count cap is enforced; encrypted PDFs are rejected; malformed PDFs return a safe validation error |
+| API archive handling | ZIP entry-count and per-member expanded-size limits are enforced; a non-EPUB ZIP is rejected before EPUB parsing |
+| API text limits | Extracted character cap rejects content above the configured limit |
+| Mobile persistence | Reading-position writes floor fractional indexes and clamp negative values to zero |
+
+These tests validate selected boundaries, not the complete acceptance matrix. Passing them would not replace native builds, end-to-end tests, security review or device verification.
