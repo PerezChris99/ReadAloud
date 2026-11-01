@@ -111,7 +111,8 @@ function getPageCumulativeLengths(pages: string[]): number[] {
 
 export function sentenceToPageIndex(sentences: string[], pages: string[], sentenceIndex: number): number {
   if (sentences.length === 0 || pages.length === 0) return 0;
-  const safeIndex = Math.max(0, Math.min(Math.floor(sentenceIndex), sentences.length - 1));
+  const requestedIndex = Number.isFinite(sentenceIndex) ? Math.floor(sentenceIndex) : 0;
+  const safeIndex = Math.max(0, Math.min(requestedIndex, sentences.length - 1));
   const prefixLength = getSentencePrefixLengths(sentences)[safeIndex] ?? 0;
   const cumulative = getPageCumulativeLengths(pages);
 
@@ -133,8 +134,9 @@ export function createInitialReaderState(): ReaderState {
 export function readerReducer(state: ReaderState, action: ReaderAction): ReaderState {
   switch (action.type) {
     case "LOAD": {
-      const total = Math.max(0, Math.floor(action.totalSentences));
-      const index = Math.max(0, Math.min(Math.floor(action.sentenceIndex ?? 0), Math.max(0, total - 1)));
+      const total = Number.isFinite(action.totalSentences) ? Math.max(0, Math.floor(action.totalSentences)) : 0;
+      const requestedIndex = Number.isFinite(action.sentenceIndex) ? Math.floor(action.sentenceIndex ?? 0) : 0;
+      const index = Math.max(0, Math.min(requestedIndex, Math.max(0, total - 1)));
       return { status: total ? "stopped" : "idle", sentenceIndex: index, totalSentences: total, error: null };
     }
     case "PLAY":
