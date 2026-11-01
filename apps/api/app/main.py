@@ -67,7 +67,7 @@ async def reject_oversized_declared_body(request: Request, call_next):
     if content_length:
         try:
             if int(content_length) > MAX_UPLOAD_BYTES + 1024 * 1024:
-                return Response("Request body is too large.", status_code=413)
+                return Response("Request body is too large.", status_code=413, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY"})
         except ValueError:
             return Response("Invalid Content-Length.", status_code=400)
     response = await call_next(request)
