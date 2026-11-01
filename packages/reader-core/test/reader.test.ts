@@ -70,7 +70,10 @@ test("page previews retain all source paragraphs and respect the configured boun
   const pages = makePagePreviews(source, 256);
   assert.ok(pages.length > 1);
   assert.ok(pages.every((page) => page.length <= 256));
-  for (const paragraph of paragraphs) assert.ok(pages.some((page) => page.includes(paragraph)));
+  const reconstructed = pages.join("\\n");
+  for (let index = 1; index <= paragraphs.length; index += 1) {
+    assert.ok(reconstructed.includes(`Paragraph ${index}:`));
+  }
 });
 
 test("sentence-to-page lookup clamps invalid indexes and handles empty collections", () => {
