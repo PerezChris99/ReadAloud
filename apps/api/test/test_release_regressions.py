@@ -34,7 +34,7 @@ def test_pdf_page_limit_is_enforced_before_page_iteration():
     payload = document.tobytes()
     document.close()
 
-    with pytest.raises(ValueError, match="2-page processing limit"):
+    with pytest.raises(ValueError, match="1-page processing limit"):
         extract_document(payload, "sample.pdf", max_pdf_pages=1)
 
 
