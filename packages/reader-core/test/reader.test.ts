@@ -106,3 +106,31 @@ test("safe ZIP validation rejects empty and truncated payloads", () => {
   assert.throws(() => assertSafeZipArchive(new Uint8Array()), /archive/i);
   assert.throws(() => assertSafeZipArchive(new Uint8Array([0x50, 0x4b, 0x03, 0x04])), /archive/i);
 });
+
+
+test("reader reducer treats non-finite counts as an empty document", () => {
+  for (const totalSentences of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const state = readerReducer(createInitialReaderState(), { type: "LOAD", totalSentences });
+    assert.equal(state.totalSentences, 0);
+    assert.equal(state.status, "idle");
+    assert.equal(state.sentenceIndex, 0);
+  }
+});
+
+test("sentence-to-page lookup safely handles non-finite indexes", () => {
+  const sentences = ["one", "two", "three"];
+  const pages = ["one", "two", "three"];
+  assert.equal(sentenceToPageIndex(sentences, pages, Number.NaN), 0);
+  assert.equal(sentenceToPageIndex(sentences, pages, Number.POSITIVE_INFINITY), 2);
+  assert.equal(sentenceToPageIndex(sentences, pages, Number.NEGATIVE_INFINITY), 0);
+});
+
+test("page preview builder rejects unsafe page sizes and preserves long unbroken tokens", () => {
+  assert.throws(() => makePagePreviews("text", Number.NaN), RangeError);
+  assert.throws(() => makePagePreviews("text", 249), RangeError);
+  assert.throws(() => makePagePreviews("text", 8001), RangeError);
+  const token = "x".repeat(1_200);
+  const pages = makePagePreviews(token, 300);
+  assert.equal(pages.join(""), token);
+  assert.ok(pages.every((page) => page.length <= 300));
+});
