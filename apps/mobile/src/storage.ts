@@ -79,7 +79,7 @@ export async function saveBook(book: BookRecord): Promise<void> {
 
 export async function updateReadingPosition(bookId: string, sentenceIndex: number): Promise<void> {
   const connection = await db();
-  await connection.runAsync("UPDATE books SET last_sentence_index = ? WHERE id = ?", Math.max(0, sentenceIndex), bookId);
+  await connection.runAsync("UPDATE books SET last_sentence_index = ? WHERE id = ?", Math.max(0, Math.floor(sentenceIndex)), bookId);
 }
 
 export async function deleteBook(bookId: string): Promise<void> {
