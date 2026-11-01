@@ -37,6 +37,11 @@ def test_request_body_limit_rejects_chunked_upload_without_content_length():
 
     sent = asyncio.run(run_test())
     assert sent[0]["status"] == 413
+    headers = dict(sent[0]["headers"])
+    assert headers[b"cache-control"] == b"no-store"
+    assert headers[b"x-content-type-options"] == b"nosniff"
+    assert headers[b"referrer-policy"] == b"no-referrer"
+    assert headers[b"x-frame-options"] == b"DENY"
     assert sent[1]["body"] == b"Request body is too large."
 
 
