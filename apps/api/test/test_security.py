@@ -37,6 +37,11 @@ def test_request_body_limit_rejects_chunked_upload_without_content_length():
 
     sent = asyncio.run(run_test())
     assert sent[0]["status"] == 413
+    headers = dict(sent[0]["headers"])
+    assert headers[b"cache-control"] == b"no-store"
+    assert headers[b"x-content-type-options"] == b"nosniff"
+    assert headers[b"referrer-policy"] == b"no-referrer"
+    assert headers[b"x-frame-options"] == b"DENY"
     assert sent[1]["body"] == b"Request body is too large."
 
 
@@ -65,3 +70,73 @@ def test_request_body_limit_does_not_interfere_with_other_routes():
 
     sent = asyncio.run(run_test())
     assert sent[0]["status"] == 200
+
+
+def test_request_body_limit_rejects_declared_oversize_with_security_headers():
+    async def run_test():
+        sent = []
+
+        async def receive():
+            raise AssertionError("Body must not be read after declared size is rejected.")
+
+        async def send(message):
+            sent.append(message)
+
+        async def downstream(scope, receive, send):
+            raise AssertionError("Downstream app must not be called.")
+
+        middleware = RequestBodyLimitMiddleware(downstream, max_bytes=10, paths={"/v1/documents/extract"})
+        await middleware(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/v1/documents/extract",
+                "headers": [(b"content-length", b"11")],
+            },
+            receive,
+            send,
+        )
+        return sent
+
+    sent = asyncio.run(run_test())
+    assert sent[0]["status"] == 413
+    headers = dict(sent[0]["headers"])
+    assert headers[b"cache-control"] == b"no-store"
+    assert headers[b"x-content-type-options"] == b"nosniff"
+    assert headers[b"referrer-policy"] == b"no-referrer"
+    assert headers[b"x-frame-options"] == b"DENY"
+
+
+def test_speech_body_limit_rejects_chunked_oversize_request():
+    async def run_test():
+        events = [
+            {"type": "http.request", "body": b"x" * 12, "more_body": True},
+            {"type": "http.request", "body": b"y" * 12, "more_body": False},
+        ]
+        sent = []
+
+        async def receive():
+            return events.pop(0)
+
+        async def send(message):
+            sent.append(message)
+
+        async def downstream(scope, receive, send):
+            while True:
+                message = await receive()
+                if message["type"] == "http.disconnect" or not message.get("more_body", False):
+                    break
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b"ok", "more_body": False})
+
+        middleware = RequestBodyLimitMiddleware(downstream, max_bytes=16, paths={"/v1/speech"})
+        await middleware(
+            {"type": "http", "method": "POST", "path": "/v1/speech", "headers": []},
+            receive,
+            send,
+        )
+        return sent
+
+    sent = asyncio.run(run_test())
+    assert sent[0]["status"] == 413
+    assert sent[1]["body"] == b"Request body is too large."

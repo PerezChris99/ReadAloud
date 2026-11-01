@@ -24,6 +24,7 @@ MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)))
 MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "800"))
 MAX_OCR_PAGES = int(os.getenv("MAX_OCR_PAGES", "100"))
 MAX_CONCURRENT_EXTRACTIONS = max(1, int(os.getenv("MAX_CONCURRENT_EXTRACTIONS", "2")))
+MAX_SPEECH_REQUEST_BYTES = 64 * 1024
 EXTRACTION_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTIONS)
 
 limiter = Limiter(
@@ -67,9 +68,9 @@ async def reject_oversized_declared_body(request: Request, call_next):
     if content_length:
         try:
             if int(content_length) > MAX_UPLOAD_BYTES + 1024 * 1024:
-                return Response("Request body is too large.", status_code=413)
+                return Response("Request body is too large.", status_code=413, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY"})
         except ValueError:
-            return Response("Invalid Content-Length.", status_code=400)
+            return Response("Invalid Content-Length.", status_code=400, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY"})
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Cache-Control"] = "no-store"
@@ -83,6 +84,13 @@ app.add_middleware(
     RequestBodyLimitMiddleware,
     max_bytes=MAX_UPLOAD_BYTES + 1024 * 1024,
     paths={"/v1/documents/extract"},
+)
+# Speech text is capped by the request schema; bound the raw JSON stream too so
+# oversized unknown fields/chunked bodies cannot consume unbounded memory.
+app.add_middleware(
+    RequestBodyLimitMiddleware,
+    max_bytes=MAX_SPEECH_REQUEST_BYTES,
+    paths={"/v1/speech"},
 )
 
 class SpeechRequest(BaseModel):

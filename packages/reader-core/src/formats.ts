@@ -15,7 +15,7 @@ export function getFormatFromName(fileName: string): SupportedFormat | null {
 }
 
 export function validateDocumentMetadata(fileName: string, size: number): string | null {
-  if (!fileName.trim() || fileName.length > 255 || /[\u0000-\u001f]/u.test(fileName)) return "The selected file has an invalid name.";
+  if (!fileName.trim() || fileName.length > 255 || /[\u0000-\u001f]/u.test(fileName) || /[\\/]/u.test(fileName)) return "The selected file has an invalid name.";
   if (getFormatFromName(fileName) === null) return "Unsupported format. Choose PDF, DOCX, TXT, EPUB, HTML, Markdown, RTF or an image.";
   if (!Number.isFinite(size) || size < 0) return "The file size could not be verified.";
   if (size > MAX_DOCUMENT_BYTES) return "This file is over the 50 MB import limit.";
