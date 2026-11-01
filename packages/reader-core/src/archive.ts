@@ -21,6 +21,11 @@ export function assertSafeZipArchive(
   const maxEntries = limits.maxEntries ?? 10_000;
   const maxExpandedBytes = limits.maxExpandedBytes ?? 200 * 1024 * 1024;
   const maxMemberBytes = limits.maxMemberBytes ?? 64 * 1024 * 1024;
+  for (const [name, value] of Object.entries({ maxEntries, maxExpandedBytes, maxMemberBytes })) {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new RangeError(`${name} must be a non-negative safe integer.`);
+    }
+  }
   if (bytes.byteLength < 22) throw new Error("The document archive is incomplete.");
 
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
