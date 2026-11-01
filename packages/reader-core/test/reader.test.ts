@@ -70,7 +70,7 @@ test("page previews retain all source paragraphs and respect the configured boun
   const pages = makePagePreviews(source, 256);
   assert.ok(pages.length > 1);
   assert.ok(pages.every((page) => page.length <= 256));
-  const reconstructed = pages.join("\\n");
+  const reconstructed = pages.join("\n");
   for (let index = 1; index <= paragraphs.length; index += 1) {
     assert.ok(reconstructed.includes(`Paragraph ${index}:`));
   }
